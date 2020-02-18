@@ -35,13 +35,13 @@ impl Default for Robot {
 
 type R = f64;
 
-pub trait Pos<R> {
+pub trait Position2D<R> {
     fn x(&self) -> R;
     fn y(&self) -> R;
     fn theta(&self) -> R;
 }
 
-impl<R: na::RealField> Pos<R> for RigidBody<R> {
+impl<R: na::RealField> Position2D<R> for RigidBody<R> {
     fn x(&self) -> R {
         self.position().translation.x
     }
@@ -84,12 +84,13 @@ impl <R: na::RealField> Vel<R> for RigidBody<R> {
     }
 }
 
-pub struct Command<R> {
+#[derive(Copy, Clone, Debug, Default)]
+pub struct Command {
     pub forward_velocity: R,
     pub steering_angle: R
 }
 
-pub fn compute_acceleration<T: Pos<R> + Vel<R>>(cmd: &Command<R>, pos_vel: &T, robot: &Robot) -> Result<Force2<R>, u32> {
+pub fn compute_acceleration<T: Position2D<R> + Vel<R>>(cmd: &Command, pos_vel: &T, robot: &Robot) -> Result<Force2<R>, u32> {
     let target_vel = cmd.forward_velocity.min(robot.max_vel_x);
     let diff = target_vel - pos_vel.forward();
     let dt = 1. / 60.;
