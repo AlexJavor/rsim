@@ -1,10 +1,10 @@
-use nphysics2d::algebra::{Force2, ForceType};
+
 use nphysics2d::object::{RigidBody, DefaultBodyHandle, DefaultColliderHandle};
 use crate::pubsub::{TopicDesc, PubSub, Fluent};
 use ncollide2d::query::Ray;
 use ncollide2d::pipeline::CollisionGroups;
 use crate::messages::{Pose, Vel};
-use crate::env::{World2D, Sensor, Simulated, Actuator};
+use crate::env::{World2D, Sensor, Actuator};
 
 use crate::utils::*;
 

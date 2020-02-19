@@ -2,6 +2,12 @@ use ggez::nalgebra::Isometry2;
 use nphysics2d::algebra::Velocity2;
 
 #[derive(Copy, Clone, Default, Debug)]
+pub struct Point {
+    pub x: f64,
+    pub y: f64
+}
+
+#[derive(Copy, Clone, Default, Debug)]
 pub struct Pose {
     pub x: f64,
     pub y: f64,

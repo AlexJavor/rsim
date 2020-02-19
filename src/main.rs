@@ -12,33 +12,16 @@ use crate::utils::*;
 
 use core::f64::consts::PI;
 
-
-use na::{Vector2, Isometry, Unit, Complex};
-use nphysics2d::object::{DefaultBodySet, DefaultColliderSet, BodyPartHandle, Body, RigidBody, DefaultBodyHandle, DefaultColliderHandle};
-use nphysics2d::force_generator::DefaultForceGeneratorSet;
-use nphysics2d::joint::DefaultJointConstraintSet;
-use nphysics2d::world::{DefaultMechanicalWorld, DefaultGeometricalWorld, MechanicalWorld, GeometricalWorld};
-
-use na::{Point2, Isometry2};
-use nphysics2d::object::{BodyStatus, RigidBodyDesc};
-use nphysics2d::math::{Velocity, Inertia};
+use na::{Vector2};
+use na::{Point2};
+use nphysics2d::object::{RigidBodyDesc};
 
 use ncollide2d::shape::{ShapeHandle, Ball};
-use nphysics2d::object::ColliderDesc;
-use nphysics2d::material::{MaterialHandle, BasicMaterial};
-use nphysics2d::algebra::ForceType::Force;
-use nphysics2d::algebra::{Force2, ForceType, Velocity2};
-use crate::robot::{Robot, Position2D, Command};
-use crate::pubsub::{Fluent, TopicDesc, PubSub};
-use ncollide2d::query::Ray;
-use ncollide2d::pipeline::CollisionGroups;
-
+use crate::robot::{Position2D};
 use crate::robot::Veloc;
-
-
 use ggez::graphics;
-use ggez::graphics::{DrawParam, DrawMode, Color, Font, Scale, TextFragment};
-use ggez::input::mouse::position;
+use ggez::graphics::{DrawParam, DrawMode, Color};
+
 
 fn main() -> ggez::error::GameResult {
 
@@ -78,16 +61,7 @@ fn main() -> ggez::error::GameResult {
 
         env.step();
 
-
-
-
-
-
-
-
         graphics::clear(ctx, [0.1, 0.2, 0.3, 1.0].into());
-
-
 
         let body = env.world.bodies.rigid_body(bob.body_handle).unwrap();
         let mouse = ggez::input::mouse::position(ctx);

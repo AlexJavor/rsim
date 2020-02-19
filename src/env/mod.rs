@@ -1,22 +1,22 @@
-use na::{Vector2, Isometry, Unit, Complex};
-use nphysics2d::object::{DefaultBodySet, DefaultColliderSet, BodyPartHandle, Body, RigidBody, DefaultBodyHandle, DefaultColliderHandle};
+use na::{Vector2};
+use nphysics2d::object::{DefaultBodySet, DefaultColliderSet, BodyPartHandle, RigidBody, DefaultBodyHandle, DefaultColliderHandle};
 use nphysics2d::force_generator::DefaultForceGeneratorSet;
 use nphysics2d::joint::DefaultJointConstraintSet;
 use nphysics2d::world::{DefaultMechanicalWorld, DefaultGeometricalWorld, MechanicalWorld, GeometricalWorld};
 
-use na::{Point2, Isometry2};
-use nphysics2d::object::{BodyStatus, RigidBodyDesc};
-use nphysics2d::math::{Velocity, Inertia};
 
-use ncollide2d::shape::{ShapeHandle, Ball};
+
+
+
+use ncollide2d::shape::{ShapeHandle};
 use nphysics2d::object::ColliderDesc;
-use nphysics2d::material::{MaterialHandle, BasicMaterial};
-use nphysics2d::algebra::ForceType::Force;
-use nphysics2d::algebra::{Force2, ForceType, Velocity2};
-use crate::robot::{Robot, Position2D, Command, BotDesc};
-use crate::pubsub::{Fluent, TopicDesc, PubSub};
-use ncollide2d::query::Ray;
-use ncollide2d::pipeline::CollisionGroups;
+
+
+
+use crate::robot::{BotDesc};
+use crate::pubsub::{PubSub};
+
+
 
 pub struct Sensor<World> {
     pub rate: f64,

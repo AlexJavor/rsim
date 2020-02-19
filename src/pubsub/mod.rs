@@ -12,10 +12,10 @@
 use std::collections::HashMap;
 use std::any::TypeId;
 //use crossbeam::channel::{Sender, Receiver};
-use std::hash::Hash;
-use std::sync::mpsc::{Sender, Receiver};
+
+use std::sync::mpsc::{Sender};
 use std::sync::{Arc, Mutex};
-use std::fmt::{Display, Debug};
+use std::fmt::{Debug};
 use std::marker::PhantomData;
 
 type Callback<T> = Box<dyn Fn(T) + Send>;
