@@ -1,4 +1,4 @@
-use nphysics2d::algebra::Force2;
+use nphysics2d::algebra::{Force2, ForceType};
 use nphysics2d::object::RigidBody;
 
 pub struct Robot {
@@ -55,14 +55,14 @@ impl<R: na::RealField> Position2D<R> for RigidBody<R> {
     }
 }
 
-pub trait Vel<R> {
-    fn forward(&self) -> R;
-    fn lateral(&self) -> R;
-    fn rotational(&self) -> R;
+pub trait Veloc<R> {
+    fn forward_vel(&self) -> R;
+    fn lateral_vel(&self) -> R;
+    fn rotational_vel(&self) -> R;
 }
 
-impl <R: na::RealField> Vel<R> for RigidBody<R> {
-    fn forward(&self) -> R {
+impl <R: na::RealField> Veloc<R> for RigidBody<R> {
+    fn forward_vel(&self) -> R {
         let theta = self.theta();
         let dot_x = self.velocity().linear[0];
         let dot_y = self.velocity().linear[1];
@@ -71,7 +71,7 @@ impl <R: na::RealField> Vel<R> for RigidBody<R> {
         v_x + v_y
     }
 
-    fn lateral(&self) -> R {
+    fn lateral_vel(&self) -> R {
         let dot_x = self.velocity().linear[0];
         let dot_y = self.velocity().linear[1];
         let v_x = dot_x * self.theta().sin();
@@ -79,7 +79,7 @@ impl <R: na::RealField> Vel<R> for RigidBody<R> {
         v_x + v_y
     }
 
-    fn rotational(&self) -> R {
+    fn rotational_vel(&self) -> R {
         self.velocity().angular
     }
 }
@@ -88,25 +88,5 @@ impl <R: na::RealField> Vel<R> for RigidBody<R> {
 pub struct Command {
     pub forward_velocity: R,
     pub steering_angle: R
-}
-
-pub fn compute_acceleration<T: Position2D<R> + Vel<R>>(cmd: &Command, pos_vel: &T, robot: &Robot) -> Result<Force2<R>, u32> {
-    let target_vel = cmd.forward_velocity.min(robot.max_vel_x);
-    let diff = target_vel - pos_vel.forward();
-    let dt = 1. / 60.;
-
-    let accel1 = diff / dt;
-    let accel = accel1.min(robot.acc_lim_x).max(-robot.acc_lim_x);
-
-    let accel_x = accel * pos_vel.theta().cos();
-    let accel_y = accel * pos_vel.theta().sin();
-    let accel_theta = pos_vel.forward() * cmd.steering_angle.tan() * 1.;
-
-    let a = Force2 {
-        linear: na::Vector2::new(accel_x, accel_y),
-        angular: accel_theta
-    };
-
-    Ok(a)
 }
 
