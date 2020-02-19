@@ -65,7 +65,7 @@ impl PubSub {
         }
     }
 
-    fn create_channel<T: 'static + Debug + Copy + Send>(&mut self, topic: &TopicId) {
+    fn create_channel<T: 'static + Clone + Debug + Send>(&mut self, topic: &TopicId) {
         let tid: TypeId = TypeId::of::<T>();
         let (writer, reader) = std::sync::mpsc::channel::<T>(); // crossbeam::channel::unbounded::<T>();
 
@@ -86,7 +86,7 @@ impl PubSub {
                 match reader.recv() {
                     Ok(res) => {
                         for cb in callbacks.lock().unwrap().iter() {
-                            cb.as_ref()(res);
+                            cb.as_ref()(res.clone());
                         }
                     },
                     Err(_) => break // can only happen if sending end was disconnected, meaning no further message can be received.
@@ -121,7 +121,7 @@ impl PubSub {
         }
     }
 
-    pub fn new_publisher<T: 'static + Copy + Send + Debug>(&mut self, topic: &TopicId) -> Result<Sender<T>, &str> {
+    pub fn new_publisher<T: 'static + Clone + Send + Debug>(&mut self, topic: &TopicId) -> Result<Sender<T>, &str> {
         if !self.exists_channel(topic) {
             self.create_channel::<T>(topic);
         }
@@ -136,11 +136,11 @@ impl PubSub {
         }
     }
 
-    pub fn poster<T : 'static + Copy + Send + Debug>(&mut self, desc: &TopicDesc<T>) -> Result<Sender<T>, &str> {
+    pub fn poster<T : 'static + Clone + Send + Debug>(&mut self, desc: &TopicDesc<T>) -> Result<Sender<T>, &str> {
         self.new_publisher::<T>(&desc.topic_name)
     }
 
-    pub fn register_callback<T: 'static + Copy + Send + Debug>(&mut self, topic: &TopicId, callback: Callback<T>) -> Result<(), &str> {
+    pub fn register_callback<T: 'static + Clone + Send + Debug>(&mut self, topic: &TopicId, callback: Callback<T>) -> Result<(), &str> {
         if !self.exists_channel(topic) {
             self.create_channel::<T>(topic);
         }
@@ -156,15 +156,16 @@ impl PubSub {
         }
     }
 
-    pub fn add_callback<T: 'static + Copy + Send + Debug>(&mut self, topic: &TopicDesc<T>, callback: Callback<T>) -> Result<(), &str> {
+    pub fn add_callback<T: 'static + Clone + Send + Debug>(&mut self, topic: &TopicDesc<T>, callback: Callback<T>) -> Result<(), &str> {
         self.register_callback(&topic.topic_name, callback)
     }
 
-    pub fn last_value_cell<T: 'static + Copy + Send + Debug>(&mut self, topic: &TopicDesc<T>) -> Result<Fluent<T>, &str> {
-        let cell = Arc::new(crossbeam::atomic::AtomicCell::new(None));
+    pub fn last_value_cell<T: 'static + Clone + Send + Debug>(&mut self, topic: &TopicDesc<T>) -> Result<Fluent<T>, &str> {
+        let cell = Arc::new(Mutex::new(Box::new(None)));
         let cell_clone = cell.clone();
         self.add_callback(&topic, Box::new(move |t: T| {
-            cell_clone.store(Some(t));
+            let mut x = cell_clone.lock().unwrap();
+            x.replace(t);
         }))?;
         Ok(Fluent {
             value: cell
@@ -173,12 +174,13 @@ impl PubSub {
 }
 
 pub struct Fluent<T> {
-    value: Arc<crossbeam::atomic::AtomicCell<Option<T>>>
+//    value: Arc<crossbeam::atomic::AtomicCell<Option<T>>>
+    value: Arc<Mutex<Box<Option<T>>>>
 }
 
 impl<T: Clone> Fluent<T> {
     pub fn get(&self) -> Option<T> {
-        self.value.clone().take()
+        (**self.value.lock().unwrap()).clone()
     }
 }
 
@@ -189,7 +191,7 @@ mod tests {
     use std::time::Duration;
 
     #[test]
-    fn test_add() {
+    fn test_send() {
         let input = TopicDesc::new("input".into());
         let output = TopicDesc::new("output".into());
 
@@ -219,6 +221,23 @@ mod tests {
         std::thread::sleep(Duration::from_millis(10));
         assert_eq!(latest.get(), Some(15));
 
+    }
+
+    #[test]
+    fn test_last_value() {
+        let input = TopicDesc::new("input".into());
+        let mut pubsub = PubSub::init();
+        let writer = pubsub.poster(&input).unwrap();
+
+        let latest = pubsub.last_value_cell(&input).unwrap();
+
+        assert_eq!(latest.get(), None);
+        assert_eq!(latest.get(), None);
+
+        writer.send(1).unwrap();
+        std::thread::sleep(Duration::from_millis(10));
+        assert_eq!(latest.get(), Some(1));
+        assert_eq!(latest.get(), Some(1));
     }
 
 

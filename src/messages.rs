@@ -7,6 +7,17 @@ pub struct Point {
     pub y: f64
 }
 
+impl Into<[f32; 2]> for Point {
+    fn into(self) -> [f32; 2] {
+        [self.x as f32, self.y as f32]
+    }
+}
+
+#[derive(Clone, Default, Debug)]
+pub struct PointCloud {
+    pub points: Vec<Point>
+}
+
 #[derive(Copy, Clone, Default, Debug)]
 pub struct Pose {
     pub x: f64,

@@ -3,10 +3,12 @@ use nphysics2d::object::{RigidBody, DefaultBodyHandle, DefaultColliderHandle};
 use crate::pubsub::{TopicDesc, PubSub, Fluent};
 use ncollide2d::query::Ray;
 use ncollide2d::pipeline::CollisionGroups;
-use crate::messages::{Pose, Vel};
+use crate::messages::{Pose, Vel, Point, PointCloud};
 use crate::env::{World2D, Sensor, Actuator};
 
 use crate::utils::*;
+use std::f64::consts::PI;
+use std::f64::INFINITY;
 
 #[allow(dead_code)]
 pub struct Robot {
@@ -106,7 +108,8 @@ pub struct BotDesc {
     pub collider: DefaultColliderHandle,
     pub pose_topic: TopicDesc<Pose>,
     pub vel_topic: TopicDesc<Vel>,
-    pub command_topic: TopicDesc<Command>
+    pub command_topic: TopicDesc<Command>,
+    pub scan_topic: TopicDesc<PointCloud>
 }
 
 
@@ -115,7 +118,8 @@ impl BotDesc {
 
         let pose_topic = TopicDesc::new(id.clone() + "/pose");
         let vel_topic = TopicDesc::new(id.clone()+ "/vel");
-        let command_topic = TopicDesc::new(id.clone() + "command");
+        let command_topic = TopicDesc::new(id.clone() + "/command");
+        let scan_topic = TopicDesc::new(id.clone() + "/scan");
 
         BotDesc {
             id,
@@ -123,7 +127,8 @@ impl BotDesc {
             collider,
             pose_topic,
             vel_topic,
-            command_topic
+            command_topic,
+            scan_topic
         }
     }
 }
@@ -139,30 +144,43 @@ impl crate::env::Simulated<World2D> for BotDesc {
         });
 
         let self_collider = self.collider;
-        let id = self.id.clone();
+        let scan_pub = pubsub.poster(&self.scan_topic).unwrap();
+
         let lidar :  Box<dyn Fn(&World2D)> =  Box::new(move |world: &World2D| {
             let body = world.bodies.rigid_body(handle).unwrap();
             let position = body.position();
-            let angle = position.rotation.angle();
-            let ray = Ray::new(
-                na::Point2::new(position.translation.vector[0], position.translation.vector[1]),
-                na::Vector2::new(angle.cos(), angle.sin())
-            );
-            let collision_group = CollisionGroups::new();
-            let result = world.geometrical_world.interferences_with_ray(
-                &world.colliders,
-                &ray,
-                &collision_group
-            );
-
-            for (handle, _, inter) in result {
-                if handle != self_collider {
-                    println!("[{}]  ray impact: {}", id, ray.point_at(inter.toi));
-                } else {
-                    println!("[{}] self impact: {}", id, ray.point_at(inter.toi));
-                }
-
+            let num_rays = 300;
+            let angle_inc = PI * 2. / num_rays as f64;
+            let mut angles = Vec::with_capacity(num_rays);
+            for i in 0..num_rays {
+                angles.push(i as f64 * angle_inc);
             }
+            let mut points = Vec::with_capacity(300);
+            for &angle in &angles {
+                let ray = Ray::new(
+                    na::Point2::new(position.translation.vector[0], position.translation.vector[1]),
+                    na::Vector2::new(angle.cos(), angle.sin())
+                );
+                let collision_group = CollisionGroups::new();
+                let result = world.geometrical_world.interferences_with_ray(
+                    &world.colliders,
+                    &ray,
+                    &collision_group
+                );
+
+                let mut min_toi = INFINITY;
+
+                for (handle, _, inter) in result {
+                    if handle != self_collider {
+                        min_toi = min_toi.min(inter.toi);
+                    }
+                }
+                if min_toi.is_finite() {
+                    let pt = ray.point_at(min_toi);
+                    points.push(Point { x: pt.x, y: pt.y });
+                }
+            }
+            scan_pub.send(PointCloud { points }).log()
         });
 
 

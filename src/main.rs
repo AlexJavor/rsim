@@ -7,6 +7,7 @@ mod pubsub;
 mod env;
 mod messages;
 mod utils;
+mod view;
 use crate::env::*;
 use crate::utils::*;
 
@@ -48,9 +49,12 @@ fn main() -> ggez::error::GameResult {
 
     let command = env.pubsub.poster(&bob.command_topic).unwrap();
 
+    let cloud = env.pubsub.last_value_cell(&bob.scan_topic).unwrap();
 
     let context_builder = ggez::ContextBuilder::new("goto", "Arthur Bit-Monnot");
     let (ctx, _event_loop) = &mut context_builder.build()?;
+
+    let meshes = crate::view::Meshes::new(ctx).unwrap();
 
     let mut i = 0;
     loop {
@@ -84,8 +88,6 @@ fn main() -> ggez::error::GameResult {
             steering_angle
         };
         command.send(target).log();
-        println!("{} {} {}", body.theta(), angle_to_mouse, angle_diff);
-        println!("{:?}", mouse);
 
 
 
@@ -99,30 +101,27 @@ fn main() -> ggez::error::GameResult {
             graphics::draw(ctx, &display, (pos, 0.0, graphics::WHITE))?;
         }
 
-        let mesh = &mut graphics::MeshBuilder::new();
-        mesh.circle(
-            DrawMode::fill(),
-            [0f32, 0f32],
-            10.,
-            0.1,
-            Color::new(1.0, 1.0, 1.0, 1.0),
-        );
-        mesh.line(
-        &[[-2.5f32, 5f32],  [7f32, 0f32], [-2.5f32, -5f32]],
-        3.0,
-        Color::new(1.0, 0.0, 0.0, 1.0),
-        )?;
-        let mesh = mesh.build(ctx)?;
+
+
+        let place = |pt: [f32;2]| { [pt[0]*10f32, pt[1] * 10f32] };
 
         for r in &env.robots {
             let body = env.world.bodies.rigid_body(r.body_handle).unwrap();
-            graphics::draw(ctx, &mesh,
+            graphics::draw(ctx, &meshes.robot,
                            DrawParam::new()
                                .rotation(body.theta() as f32)
-                               .dest([(10. * body.x()) as f32, (10. * body.y()) as f32])
+                               .dest(place([body.x() as f32, body.y() as f32]))
             ).unwrap();
 
         }
+
+        if let Some(points) = cloud.get() {
+            for p in points.points {
+
+                graphics::draw(ctx, &meshes.impact, DrawParam::new().dest(place(p.into())))?;
+            }
+        }
+
 
         if i %2 == 0 {
             graphics::present(ctx)?;
