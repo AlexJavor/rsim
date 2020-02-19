@@ -72,7 +72,6 @@ impl PubSub {
         let channel = Topic {
             type_id: tid,
             writer,
-//            reader,
             callbacks: Arc::new(Mutex::new(Vec::new()))
         };
         let cbs = channel.callbacks.clone();
@@ -81,7 +80,6 @@ impl PubSub {
         };
         self.channels.insert(topic.clone(), channel_erased);
 
-        let topic = topic.clone();
         std::thread::spawn(move || {
             let callbacks = cbs;
             loop {
@@ -91,7 +89,7 @@ impl PubSub {
                             cb.as_ref()(res);
                         }
                     },
-                    Err(e) => break // can only happen if sending end was disconnected, meaning no further message can be received.
+                    Err(_) => break // can only happen if sending end was disconnected, meaning no further message can be received.
                 }
 
             }
@@ -199,29 +197,27 @@ mod tests {
         let writer = pubsub.poster(&input).unwrap();
 
 
-        pubsub.add_callback(&input, Box::new(|i: i32| { println!("from callback: {}", i)}));
+        pubsub.add_callback(&input, Box::new(|i: i32| { println!("from callback: {}", i)})).unwrap();
 
-        let out2 = output.clone();
         let poster = pubsub.poster(&output).unwrap();
 
         pubsub.add_callback(&input, Box::new( move|i: i32| {
-            poster.send(i + 10);
-        }));
+            poster.send(i + 10).unwrap();
+        })).unwrap();
 
         let latest = pubsub.last_value_cell(&output).unwrap();
 
         std::thread::sleep(Duration::from_millis(10));
         assert_eq!(latest.get(), None);
 
-        writer.send(3);
+        writer.send(3).unwrap();
         std::thread::sleep(Duration::from_millis(10));
         assert_eq!(latest.get(), Some(13));
 
-        writer.send(4);
-        writer.send(5);
+        writer.send(4).unwrap();
+        writer.send(5).unwrap();
         std::thread::sleep(Duration::from_millis(10));
         assert_eq!(latest.get(), Some(15));
-
 
     }
 

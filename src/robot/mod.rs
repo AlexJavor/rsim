@@ -1,6 +1,14 @@
 use nphysics2d::algebra::{Force2, ForceType};
-use nphysics2d::object::RigidBody;
+use nphysics2d::object::{RigidBody, DefaultBodyHandle, DefaultColliderHandle};
+use crate::pubsub::{TopicDesc, PubSub, Fluent};
+use ncollide2d::query::Ray;
+use ncollide2d::pipeline::CollisionGroups;
+use crate::messages::{Pose, Vel};
+use crate::env::{World2D, Sensor, Simulated, Actuator};
 
+use crate::utils::*;
+
+#[allow(dead_code)]
 pub struct Robot {
     acc_lim_x: f64,
     acc_lim_y: f64,
@@ -90,3 +98,95 @@ pub struct Command {
     pub steering_angle: R
 }
 
+
+#[derive(Clone)]
+pub struct BotDesc {
+    pub id: String,
+    pub body_handle: DefaultBodyHandle,
+    pub collider: DefaultColliderHandle,
+    pub pose_topic: TopicDesc<Pose>,
+    pub vel_topic: TopicDesc<Vel>,
+    pub command_topic: TopicDesc<Command>
+}
+
+
+impl BotDesc {
+    pub fn new(id: String, body_handle: DefaultBodyHandle, collider: DefaultColliderHandle) -> Self {
+
+        let pose_topic = TopicDesc::new(id.clone() + "/pose");
+        let vel_topic = TopicDesc::new(id.clone()+ "/vel");
+        let command_topic = TopicDesc::new(id.clone() + "command");
+
+        BotDesc {
+            id,
+            body_handle,
+            collider,
+            pose_topic,
+            vel_topic,
+            command_topic
+        }
+    }
+}
+
+impl crate::env::Simulated<World2D> for BotDesc {
+
+    fn sensors(&self, pubsub: &mut PubSub) -> Vec<Sensor<World2D>> {
+        let pose_pub = pubsub.poster(&self.pose_topic).unwrap();
+        let handle = self.body_handle.clone();
+        let sense_pose :  Box<dyn Fn(&World2D)> =  Box::new(move |world: &World2D| {
+            let body = world.bodies.rigid_body(handle).unwrap();
+            pose_pub.send(Pose::from(*body.position())).log()
+        });
+
+        let self_collider = self.collider;
+        let id = self.id.clone();
+        let lidar :  Box<dyn Fn(&World2D)> =  Box::new(move |world: &World2D| {
+            let body = world.bodies.rigid_body(handle).unwrap();
+            let position = body.position();
+            let angle = position.rotation.angle();
+            let ray = Ray::new(
+                na::Point2::new(position.translation.vector[0], position.translation.vector[1]),
+                na::Vector2::new(angle.cos(), angle.sin())
+            );
+            let collision_group = CollisionGroups::new();
+            let result = world.geometrical_world.interferences_with_ray(
+                &world.colliders,
+                &ray,
+                &collision_group
+            );
+
+            for (handle, _, inter) in result {
+                if handle != self_collider {
+                    println!("[{}]  ray impact: {}", id, ray.point_at(inter.toi));
+                } else {
+                    println!("[{}] self impact: {}", id, ray.point_at(inter.toi));
+                }
+
+            }
+        });
+
+
+        vec![
+            Sensor { rate: 30.0, func: Box::new(sense_pose) },
+            Sensor { rate: 5.0, func: Box::new(lidar)}
+        ]
+    }
+
+    fn actuators(&self, pubsub: &mut PubSub) -> Vec<Actuator<World2D>> {
+        let command_reader: Fluent<Command> = pubsub.last_value_cell(&self.command_topic).unwrap();
+        let body_handle = self.body_handle.clone();
+        let controller = move |world: &mut World2D| {
+            let command = command_reader.get().unwrap_or_default();
+            let body = world.bodies.rigid_body_mut(body_handle).unwrap();
+
+            let v = command.forward_velocity;
+            let theta = body.theta();
+            let vx = v * theta.cos();
+            let vy = v * theta.sin();
+            let vtheta = v * command.steering_angle.tan() / 3.;
+            body.set_linear_velocity(na::Vector2::new(vx, vy));
+            body.set_angular_velocity(vtheta);
+        };
+        vec![Box::new(controller)]
+    }
+}
