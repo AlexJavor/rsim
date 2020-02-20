@@ -7,11 +7,18 @@
  * QUICK AND DIRTY CONTROLLER
  *
  * Implements a simple controller that moves in the direction of the goal
- * at max speeds.
+ * at max speed.
  *
  * Stops if it is too close to an obstacle.
+ *
+ * Problems:
+ * - not thread safe
+ * - might start driving before being given target/position/obstacles
  */
 
+#define SAFETY_DIST 2.0
+#define MAX_SPEED 2.0
+#define MAX_STEER 0.4
 
 typedef struct Data {
     Pose current;
@@ -21,7 +28,7 @@ typedef struct Data {
 
 Data *init(void) {
     Data* data = malloc(sizeof(Data));
-
+    // careful, not initialized...
     return data;
 }
 
@@ -59,10 +66,6 @@ void on_new_scan(Data *data, const Point *points, uint32_t len) {
     // update in data
     data->closest_obstacle = min_dist;
 }
-
-#define SAFETY_DIST 2.0
-#define MAX_SPEED 2.0
-#define MAX_STEER 0.4
 
 int direction(Pose, Point);
 

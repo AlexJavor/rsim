@@ -50,7 +50,6 @@ fn main() -> ggez::error::GameResult {
     let bob = env.add_robot("bob".into(), bob_body, ball_shape.clone());
     let _max = env.add_robot("max".into(), max_body, ball_shape.clone());
 
-
     let controller = unsafe { robot::plugin::Plugin::new(OsStr::new("controller/libdummy_controller.so")) };
     robot::wire(&mut env.pubsub, &bob, controller);
 
