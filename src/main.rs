@@ -8,10 +8,11 @@ mod env;
 mod messages;
 mod utils;
 mod view;
-use crate::env::*;
-use crate::utils::*;
 
-use core::f64::consts::PI;
+use crate::env::*;
+
+
+
 
 use na::{Vector2};
 use na::{Point2};
@@ -21,7 +22,9 @@ use ncollide2d::shape::{ShapeHandle, Ball};
 use crate::robot::{Position2D};
 use crate::robot::Veloc;
 use ggez::graphics;
-use ggez::graphics::{DrawParam, DrawMode, Color};
+use ggez::graphics::{DrawParam};
+use std::ffi::OsStr;
+
 
 
 fn main() -> ggez::error::GameResult {
@@ -47,7 +50,9 @@ fn main() -> ggez::error::GameResult {
     let bob = env.add_robot("bob".into(), bob_body, ball_shape.clone());
     let _max = env.add_robot("max".into(), max_body, ball_shape.clone());
 
-    let command = env.pubsub.poster(&bob.command_topic).unwrap();
+
+    let controller = unsafe { robot::plugin::Plugin::new(OsStr::new("controller/libdummy_controller.so")) };
+    robot::wire(&mut env.pubsub, &bob, controller);
 
     let cloud = env.pubsub.last_value_cell(&bob.scan_topic).unwrap();
 
@@ -55,6 +60,7 @@ fn main() -> ggez::error::GameResult {
     let (ctx, _event_loop) = &mut context_builder.build()?;
 
     let meshes = crate::view::Meshes::new(ctx).unwrap();
+    let latest_command = env.pubsub.last_value_cell(&bob.command_topic).unwrap();
 
     let mut i = 0;
     loop {
@@ -68,33 +74,16 @@ fn main() -> ggez::error::GameResult {
         graphics::clear(ctx, [0.1, 0.2, 0.3, 1.0].into());
 
         let body = env.world.bodies.rigid_body(bob.body_handle).unwrap();
-        let mouse = ggez::input::mouse::position(ctx);
 
-        let dx = mouse.x as f64 - body.x();
-        let dy = mouse.y as f64- body.y();
-        let angle_to_mouse = dy.atan2(dx);
-        let angle_diff = PI - f64::abs(f64::abs(body.theta() - angle_to_mouse) - PI);
-
-        let steering_angle = if angle_diff.abs() < 0.01 {
-            0.
-        } else if angle_diff < 0. {
-            -0.4
-        } else {
-            0.4
-        };
-
-        let target = robot::Command {
-            forward_velocity: 1.6,
-            steering_angle
-        };
-        command.send(target).log();
-
-
-
-        let text_lines = [
+        let mut text_lines = vec![
             format!("Pos: (x: {:.2}, y: {:.2}, theta: {:.2})", body.x(), body.y(), body.theta()),
             format!("Vel: (forward: {:.2}, lateral: {:.2}, rot: {:.2})", body.forward_vel(), body.lateral_vel(), body.rotational_vel())
         ];
+        if let Some(cmd) = latest_command.get() {
+            text_lines.push(
+                format!("Command: (forward_vel: {:.2}, steering: {:.2})", cmd.forward_velocity, cmd.steering_angle)
+            );
+        }
         for (i, l) in text_lines.iter().enumerate() {
             let display = graphics::Text::new(l.as_str());
             let pos = Point2::new(2., (i as f32) * 20.);

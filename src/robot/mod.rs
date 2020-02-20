@@ -1,3 +1,4 @@
+pub mod plugin;
 
 use nphysics2d::object::{RigidBody, DefaultBodyHandle, DefaultColliderHandle};
 use crate::pubsub::{TopicDesc, PubSub, Fluent};
@@ -9,6 +10,9 @@ use crate::env::{World2D, Sensor, Actuator};
 use crate::utils::*;
 use std::f64::consts::PI;
 use std::f64::INFINITY;
+use crate::robot::plugin::{Plugin, ControllerPlugin};
+use std::sync::Arc;
+use std::time::Duration;
 
 #[allow(dead_code)]
 pub struct Robot {
@@ -42,8 +46,6 @@ impl Default for Robot {
         }
     }
 }
-
-type R = f64;
 
 pub trait Position2D<R> {
     fn x(&self) -> R;
@@ -95,9 +97,10 @@ impl <R: na::RealField> Veloc<R> for RigidBody<R> {
 }
 
 #[derive(Copy, Clone, Debug, Default)]
+#[repr(C)]
 pub struct Command {
-    pub forward_velocity: R,
-    pub steering_angle: R
+    pub forward_velocity: f32,
+    pub steering_angle: f32
 }
 
 
@@ -177,7 +180,7 @@ impl crate::env::Simulated<World2D> for BotDesc {
                 }
                 if min_toi.is_finite() {
                     let pt = ray.point_at(min_toi);
-                    points.push(Point { x: pt.x, y: pt.y });
+                    points.push(Point { x: pt.x as f32, y: pt.y as f32});
                 }
             }
             scan_pub.send(PointCloud { points }).log()
@@ -199,12 +202,39 @@ impl crate::env::Simulated<World2D> for BotDesc {
 
             let v = command.forward_velocity;
             let theta = body.theta();
-            let vx = v * theta.cos();
-            let vy = v * theta.sin();
+            let vx = v as f64 * theta.cos();
+            let vy = v as f64 * theta.sin();
             let vtheta = v * command.steering_angle.tan() / 3.;
             body.set_linear_velocity(na::Vector2::new(vx, vy));
-            body.set_angular_velocity(vtheta);
+            body.set_angular_velocity(vtheta as f64);
         };
         vec![Box::new(controller)]
+    }
+}
+
+
+
+pub fn wire(pubsub: &mut PubSub, bot: &BotDesc, controller: Plugin) {
+    let plug = Arc::new(Box::new(controller));
+    {
+        let plug = plug.clone();
+        pubsub.add_callback(&bot.pose_topic, Box::new( move |pose| plug.on_new_pose(pose) ))
+            .log()
+    }
+    {
+        let plug = plug.clone();
+        pubsub.add_callback(&bot.scan_topic, Box::new( move |scan| plug.on_new_scan(scan) ))
+            .log()
+    }
+    {
+        let plug = plug.clone();
+        let poster = pubsub.poster(&bot.command_topic).unwrap();
+        std::thread::spawn(move || {
+            loop {
+                std::thread::sleep(Duration::from_millis(30));
+                let cmd = plug.get_command();
+                poster.send(cmd).log();
+            }
+        });
     }
 }
