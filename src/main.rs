@@ -33,13 +33,21 @@ struct Map {
     pixel_size: f32,
 }
 
+pub enum SimResult {
+    Success(f64),
+    Crash,
+    Timeout
+}
+
 struct MainState {
     env: Env<World2D>,
     meshes: Meshes,
     cloud: Fluent<PointCloud>,
     latest_command: Fluent<Command>,
     latest_target: Fluent<Point>,
-    map: Map
+    map: Map,
+    conf: Opt,
+    result: Option<SimResult>
 }
 
 
@@ -94,15 +102,47 @@ impl MainState {
             cloud,
             latest_command,
             latest_target,
-            map
+            map,
+            result: None,
+            conf: conf.clone()
         };
         Ok(s)
     }
 }
 
 impl event::EventHandler for MainState {
-    fn update(&mut self, _ctx: &mut Context) -> Result<(), GameError> {
+    fn update(&mut self, ctx: &mut Context) -> Result<(), GameError> {
         self.env.step();
+
+        let bob = &self.env.robots[0];
+
+        let contacts = self.env.world.geometrical_world.contact_events();
+        for contact in contacts {
+            match contact {
+                ncollide2d::narrow_phase::ContactEvent::Started(h1, h2) => if *h1 == bob.collider || *h2 == bob.collider {
+                    self.result.replace(SimResult::Crash);
+                    ggez::event::quit(ctx);
+                },
+                ncollide2d::narrow_phase::ContactEvent::Stopped(_, _) => ()
+            }
+        }
+
+        let runtime = self.env.world.mechanical_world.integration_parameters.t;
+
+        if let Some(target) = self.latest_target.get() {
+            let pose = self.env.world.bodies.rigid_body(bob.body_handle).unwrap();
+            let dist = f64::sqrt( (pose.x() - target.x as f64).powi(2) + (pose.y() - target.y as f64).powi(2));
+            if dist < 0.2 {
+                self.result.replace(SimResult::Success(runtime));
+                ggez::event::quit(ctx);
+            }
+        }
+
+        if runtime > self.conf.timeout {
+            self.result.replace(SimResult::Timeout);
+            ggez::event::quit(ctx);
+        }
+
         Ok(())
     }
 
@@ -212,7 +252,11 @@ pub struct Opt {
 
     /// Y coordinate of the target to reach
     #[structopt(long, default_value = "50")]
-    target_y: f64
+    target_y: f64,
+
+    /// Timeout in seconds
+    #[structopt(short, long, default_value = "60")]
+    timeout: f64
 }
 
 fn main() -> ggez::error::GameResult {
@@ -227,6 +271,22 @@ fn main() -> ggez::error::GameResult {
 
     let state = &mut MainState::new(ctx, conf)?;
     event::run(ctx, event_loop, state)?;
+
+    if let Some(res) = state.result.as_ref() {
+        match res {
+            SimResult::Success(t) => {
+                println!("SUCCESS !!! Time to reach the target : {:.2}s", t);
+            },
+            SimResult::Crash => {
+                println!("CRASH !!!!");
+            },
+            SimResult::Timeout => {
+                println!("TIMEOUT !!!!")
+            }
+        }
+    } else {
+        println!("Simulation exited prematuraly");
+    }
 
     Ok(())
 }
