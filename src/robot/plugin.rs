@@ -69,7 +69,8 @@ pub struct Plugin {
 
 impl Plugin {
     pub unsafe fn new(library_name: &OsStr) -> Plugin {
-        let library = Library::new(library_name).unwrap();
+        let library = Library::new(library_name)
+            .expect(format!("Could not open controller library: {}", library_name.to_str().unwrap()).as_str());
         let vtable = VTable::new(&library);
 
         let object: *mut Obj = (vtable.init)();

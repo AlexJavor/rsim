@@ -1,5 +1,6 @@
 
 extern crate nalgebra as na;
+use structopt::StructOpt;
 
 
 mod robot;
@@ -44,9 +45,9 @@ struct MainState {
 
 
 impl MainState {
-    fn new(ctx: &mut Context, conf: Conf) -> GameResult<MainState> {
-        let map_img = ggez::graphics::Image::new(ctx, "/".to_owned() + &conf.map_name)
-            .expect(format!("Could not find map file: {}", conf.map_name).as_str());
+    fn new(ctx: &mut Context, conf: Opt) -> GameResult<MainState> {
+        let map_img = ggez::graphics::Image::new(ctx, "/".to_owned() + &conf.map)
+            .expect(format!("Could not find map file: {}", conf.map).as_str());
         let map = Map {
             img: map_img,
             pixel_size: 0.1f32
@@ -68,15 +69,24 @@ impl MainState {
         let bob_body = rb_desc.clone().translation(Vector2::new(10.0, 10.0)).build();
         let ball_shape = ShapeHandle::new(Ball::new(1.));
 
-        let bob = env.add_robot("bob".into(), bob_body, ball_shape.clone());
+        let bob = env.add_robot("bob".into(), bob_body, ball_shape.clone(), conf.clone());
 
-        let controller = unsafe { robot::plugin::Plugin::new(OsStr::new("controller/libdummy_controller.so")) };
+        let controller = unsafe { robot::plugin::Plugin::new(OsStr::new(&conf.controller)) };
         robot::wire(&mut env.pubsub, &bob, controller);
 
         let meshes = crate::view::Meshes::new(ctx).unwrap();
         let cloud = env.pubsub.last_value_cell(&bob.scan_topic).unwrap();
         let latest_command = env.pubsub.last_value_cell(&bob.command_topic).unwrap();
         let latest_target = env.pubsub.last_value_cell(&bob.target_topic).unwrap();
+
+        {
+            // this should come after wiring and after creating latest target so that the goal is accounted for
+            // todo: support latched topics
+            let target_setter = env.pubsub.poster(&bob.target_topic).unwrap();
+            let target = Point { x: conf.target_x as f32, y: conf.target_y as f32};
+            target_setter.send(target).unwrap();
+        }
+
 
         let s = MainState {
           env: env,
@@ -170,15 +180,44 @@ impl event::EventHandler for MainState {
     }
 }
 
-struct Conf {
-    map_name: String
+
+
+#[derive(Debug, StructOpt, Clone)]
+#[structopt(name = "rsim", about = "A simple 2D robotic simulator.")]
+pub struct Opt {
+    /// Path to an image containing the map
+    #[structopt(short, long, default_value = "maps/base.jpg")]
+    map: String,
+
+    /// Pash to a shared library implenting the "controller.h" interface
+    #[structopt(short, long, default_value = "controller/libdummy_controller.so")]
+    controller: String,
+
+    #[structopt(long, default_value = "2")]
+    max_speed: f64,
+
+    #[structopt(long, default_value = "0.5")]
+    max_backward_speed: f64,
+
+    #[structopt(long, default_value = "0.4")]
+    max_rotation: f64,
+
+    /// If set, the robot can turn in place
+    #[structopt(long)]
+    in_place: bool,
+
+    /// X coordinate of the target to reach
+    #[structopt(long, default_value = "50")]
+    target_x: f64,
+
+    /// Y coordinate of the target to reach
+    #[structopt(long, default_value = "50")]
+    target_y: f64
 }
 
 fn main() -> ggez::error::GameResult {
 
-    let conf = Conf {
-        map_name: String::from("maps/base.jpg")
-    };
+    let conf = Opt::from_args();
 
     let context_builder = ggez::ContextBuilder::new("rsim", "Arthur Bit-Monnot")
         .add_resource_path(std::path::PathBuf::from("."))

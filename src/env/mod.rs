@@ -15,7 +15,7 @@ use nphysics2d::object::ColliderDesc;
 
 use crate::robot::{BotDesc};
 use crate::pubsub::{PubSub};
-use crate::Map;
+use crate::{Map, Opt};
 use ggez::Context;
 
 
@@ -124,14 +124,14 @@ pub(crate) struct Env<World> {
 
 impl Env<World2D> {
 
-    pub fn add_robot(&mut self, id: String, body: RigidBody<N>, shape_handle: ShapeHandle<N>) -> BotDesc {
+    pub fn add_robot(&mut self, id: String, body: RigidBody<N>, shape_handle: ShapeHandle<N>, conf: Opt) -> BotDesc {
         let body_handle = self.world.bodies.insert(body);
 
         let mut collider = ColliderDesc::new(shape_handle).build(BodyPartHandle(body_handle, 0));
         collider.set_user_data(Some(Box::new(id.clone())));
         let collider_handle = self.world.colliders.insert(collider);
 
-        let bot = BotDesc::new(id, body_handle, collider_handle);
+        let bot = BotDesc::new(id, body_handle, collider_handle, conf);
 
         for sensor in bot.sensors(&mut self.pubsub) {
             self.sensors.push((sensor, 0.0));

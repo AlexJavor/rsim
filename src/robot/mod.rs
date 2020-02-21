@@ -13,6 +13,7 @@ use std::f64::INFINITY;
 use crate::robot::plugin::{Plugin, ControllerPlugin};
 use std::sync::Arc;
 use std::time::Duration;
+use crate::Opt;
 
 #[allow(dead_code)]
 pub struct Robot {
@@ -113,12 +114,16 @@ pub struct BotDesc {
     pub vel_topic: TopicDesc<Vel>,
     pub command_topic: TopicDesc<Command>,
     pub scan_topic: TopicDesc<PointCloud>,
-    pub target_topic: TopicDesc<Point>
+    pub target_topic: TopicDesc<Point>,
+    pub max_forward_speed: f64,
+    pub max_backward_speed: f64,
+    pub max_rot_speed: f64,
+    pub can_turn_in_place: bool
 }
 
 
 impl BotDesc {
-    pub fn new(id: String, body_handle: DefaultBodyHandle, collider: DefaultColliderHandle) -> Self {
+    pub fn new(id: String, body_handle: DefaultBodyHandle, collider: DefaultColliderHandle, conf: Opt) -> Self {
 
         let pose_topic = TopicDesc::new(id.clone() + "/pose");
         let vel_topic = TopicDesc::new(id.clone()+ "/vel");
@@ -134,7 +139,12 @@ impl BotDesc {
             vel_topic,
             command_topic,
             scan_topic,
-            target_topic
+            target_topic,
+
+            max_forward_speed: conf.max_speed,
+            max_backward_speed: conf.max_backward_speed,
+            max_rot_speed: conf.max_rotation,
+            can_turn_in_place: conf.in_place
         }
     }
 }
@@ -199,17 +209,26 @@ impl crate::env::Simulated<World2D> for BotDesc {
     fn actuators(&self, pubsub: &mut PubSub) -> Vec<Actuator<World2D>> {
         let command_reader: Fluent<Command> = pubsub.last_value_cell(&self.command_topic).unwrap();
         let body_handle = self.body_handle.clone();
+        let myself = self.clone();
         let controller = move |world: &mut World2D| {
             let command = command_reader.get().unwrap_or_default();
             let body = world.bodies.rigid_body_mut(body_handle).unwrap();
 
-            let v = command.forward_velocity;
+            let v = command.forward_velocity as f64;
+            let v = v.min(myself.max_forward_speed).max(- myself.max_backward_speed);
             let theta = body.theta();
-            let vx = v as f64 * theta.cos();
-            let vy = v as f64 * theta.sin();
-            let vtheta = v * command.steering_angle.tan() / 3.;
+            let vx = v * theta.cos();
+            let vy = v * theta.sin();
+            let rot_speed = command.steering_angle as f64;
+            let rot_speed = rot_speed.min(myself.max_rot_speed).max(-myself.max_rot_speed);
+            let vtheta =
+                if myself.can_turn_in_place {
+                    rot_speed
+                } else {
+                    v * rot_speed
+                };
             body.set_linear_velocity(na::Vector2::new(vx, vy));
-            body.set_angular_velocity(vtheta as f64);
+            body.set_angular_velocity(vtheta);
         };
         vec![Box::new(controller)]
     }
