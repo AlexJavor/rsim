@@ -3,7 +3,8 @@ use ggez::{graphics, Context, GameResult};
 
 pub(crate) struct Meshes {
     pub impact: Mesh,
-    pub robot: Mesh
+    pub robot: Mesh,
+    pub target: Mesh
 }
 
 
@@ -33,10 +34,24 @@ impl Meshes {
             Color::new(1., 0., 1., 1.0),
         );
         let impact = mesh.build(ctx)?;
+        let x = 4f32;
+        let mesh = &mut graphics::MeshBuilder::new();
+        mesh.line(
+        &[[-x, -x],  [x, x]],
+        1.0,
+        Color::new(1.0, 0.0, 0.0, 1.0),
+        )?;
+        mesh.line(
+            &[[-x, x],  [x, -x]],
+            2.0,
+            Color::new(1.0, 0.0, 0.0, 1.0),
+        )?;
+        let target = mesh.build(ctx)?;
 
         Ok(Meshes {
             impact,
-            robot
+            robot,
+            target
         })
     }
 }

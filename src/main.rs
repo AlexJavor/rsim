@@ -11,9 +11,6 @@ mod view;
 
 use crate::env::*;
 
-
-
-
 use na::{Vector2};
 use na::{Point2};
 use nphysics2d::object::{RigidBodyDesc};
@@ -26,14 +23,17 @@ use ggez::graphics::{DrawParam};
 use std::ffi::OsStr;
 use std::f64::consts::PI;
 use crate::view::Meshes;
-use crate::messages::PointCloud;
+use crate::messages::{PointCloud, Point};
 use crate::pubsub::Fluent;
+use ggez::event::MouseButton;
+
 
 struct MainState {
     env: Env<World2D>,
     meshes: Meshes,
     cloud: Fluent<PointCloud>,
-    latest_command: Fluent<Command>
+    latest_command: Fluent<Command>,
+    latest_target: Fluent<Point>
 }
 
 impl MainState {
@@ -46,7 +46,6 @@ impl MainState {
             sensors: Vec::new(),
             actuators: Vec::new()
         };
-
 
         let rb_desc = RigidBodyDesc::new()
             .rotation(PI / 4. * 0.)
@@ -64,12 +63,14 @@ impl MainState {
         let meshes = crate::view::Meshes::new(ctx).unwrap();
         let cloud = env.pubsub.last_value_cell(&bob.scan_topic).unwrap();
         let latest_command = env.pubsub.last_value_cell(&bob.command_topic).unwrap();
+        let latest_target = env.pubsub.last_value_cell(&bob.target_topic).unwrap();
 
         let s = MainState {
           env: env,
             meshes,
             cloud,
-            latest_command
+            latest_command,
+            latest_target
         };
         Ok(s)
     }
@@ -82,10 +83,11 @@ impl event::EventHandler for MainState {
     }
 
     fn draw(&mut self, ctx: &mut Context) -> Result<(), GameError> {
+        let place = |pt: [f32;2]| { [pt[0]*10f32, pt[1] * 10f32] };
+
         graphics::clear(ctx, [0.1, 0.2, 0.3, 1.0].into());
 
         let bob = &self.env.robots[0];
-
         let body = self.env.world.bodies.rigid_body(bob.body_handle).unwrap();
 
         let mut text_lines = vec![
@@ -97,6 +99,16 @@ impl event::EventHandler for MainState {
                 format!("Command: (forward_vel: {:.2}, steering: {:.2})", cmd.forward_velocity, cmd.steering_angle)
             );
         }
+        if let Some(target) = self.latest_target.get() {
+            let d = f32::sqrt( (target.x - body.x() as f32).powi(2) + (target.y - body.y() as f32).powi(2));
+            text_lines.push(
+                format!("Target: ({:.2}, {:.2}) -- dist: {:.2}", target.x, target.y, d)
+            );
+            graphics::draw(ctx, &self.meshes.target,
+                           DrawParam::new()
+                               .dest(place([target.x, target.y]))
+            ).unwrap();
+        }
         for (i, l) in text_lines.iter().enumerate() {
             let display = graphics::Text::new(l.as_str());
             let pos = Point2::new(2., (i as f32) * 20.);
@@ -104,8 +116,6 @@ impl event::EventHandler for MainState {
         }
 
 
-
-        let place = |pt: [f32;2]| { [pt[0]*10f32, pt[1] * 10f32] };
 
         for r in &self.env.robots {
             let body = self.env.world.bodies.rigid_body(r.body_handle).unwrap();
@@ -119,13 +129,28 @@ impl event::EventHandler for MainState {
 
         if let Some(points) = self.cloud.get() {
             for p in points.points {
-
                 graphics::draw(ctx, &self.meshes.impact, DrawParam::new().dest(place(p.into())))?;
             }
         }
 
-
         graphics::present(ctx)
+    }
+
+    fn mouse_button_up_event(
+        &mut self,
+        _ctx: &mut Context,
+        _button: MouseButton,
+        x: f32,
+        y: f32,
+    ) {
+        let x = x / 10.; // TODO: properly handle transformations between view and simu
+        let y = y / 10.;
+        println!("Changing target to ({:.2}, {:.2})", x, y);
+        let rob = &self.env.robots[0];
+        let target_poster = self.env.pubsub.poster(&rob.target_topic)
+            .expect("Could not initialize publisher to target topic");
+        target_poster.send(Point { x: x, y: y })
+            .expect("Could not publish target")
     }
 }
 

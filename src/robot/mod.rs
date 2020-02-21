@@ -112,7 +112,8 @@ pub struct BotDesc {
     pub pose_topic: TopicDesc<Pose>,
     pub vel_topic: TopicDesc<Vel>,
     pub command_topic: TopicDesc<Command>,
-    pub scan_topic: TopicDesc<PointCloud>
+    pub scan_topic: TopicDesc<PointCloud>,
+    pub target_topic: TopicDesc<Point>
 }
 
 
@@ -123,6 +124,7 @@ impl BotDesc {
         let vel_topic = TopicDesc::new(id.clone()+ "/vel");
         let command_topic = TopicDesc::new(id.clone() + "/command");
         let scan_topic = TopicDesc::new(id.clone() + "/scan");
+        let target_topic = TopicDesc::new(id.clone() + "/target");
 
         BotDesc {
             id,
@@ -131,7 +133,8 @@ impl BotDesc {
             pose_topic,
             vel_topic,
             command_topic,
-            scan_topic
+            scan_topic,
+            target_topic
         }
     }
 }
@@ -224,6 +227,11 @@ pub fn wire(pubsub: &mut PubSub, bot: &BotDesc, controller: Plugin) {
     {
         let plug = plug.clone();
         pubsub.add_callback(&bot.scan_topic, Box::new( move |scan| plug.on_new_scan(scan) ))
+            .log()
+    }
+    {
+        let plug = plug.clone();
+        pubsub.add_callback(&bot.target_topic, Box::new( move |target| plug.on_new_target(target)))
             .log()
     }
     {

@@ -72,8 +72,6 @@ int direction(Pose, Point);
 Command get_command(Data *data) {
     Command cmd;
     Point target = data->target;
-    target.x = 100;
-    target.y = 30;
     if(data->closest_obstacle > SAFETY_DIST) {
         // got some margin
         cmd.forward_vel = MAX_SPEED;
@@ -111,7 +109,7 @@ int direction(Pose self, Point target) {
 
     float dot_prod = rightward_x * target_dir_x + righward_y * target_dir_y;
 
-    if(abs(dot_prod) < 0.001) { // note the numer here is arbitrary
+    if(fabs(dot_prod) < 0.0001) { // note the numer here is arbitrary
         return 0; // approximately center
     } else if(dot_prod < 0) {
         return -1; // left
