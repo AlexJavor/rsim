@@ -1,5 +1,5 @@
 [package]
-name = "simu"
+name = "rsim"
 version = "0.1.0"
 authors = ["Arthur Bit-Monnot <abitmonnot@laas.fr>"]
 edition = "2018"
