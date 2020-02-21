@@ -27,18 +27,31 @@ use crate::messages::{PointCloud, Point};
 use crate::pubsub::Fluent;
 use ggez::event::MouseButton;
 
+struct Map {
+    img: ggez::graphics::Image,
+    pixel_size: f32,
+}
 
 struct MainState {
     env: Env<World2D>,
     meshes: Meshes,
     cloud: Fluent<PointCloud>,
     latest_command: Fluent<Command>,
-    latest_target: Fluent<Point>
+    latest_target: Fluent<Point>,
+    map: Map
 }
 
+
+
 impl MainState {
-    fn new(ctx: &mut Context) -> GameResult<MainState> {
-        let world = World2D::new();
+    fn new(ctx: &mut Context, conf: Conf) -> GameResult<MainState> {
+        let map_img = ggez::graphics::Image::new(ctx, "/".to_owned() + &conf.map_name)
+            .expect(format!("Could not find map file: {}", conf.map_name).as_str());
+        let map = Map {
+            img: map_img,
+            pixel_size: 0.1f32
+        };
+        let world = World2D::new(ctx,Some(&map));
         let mut env = Env {
             pubsub: crate::pubsub::PubSub::init(),
             world,
@@ -70,7 +83,8 @@ impl MainState {
             meshes,
             cloud,
             latest_command,
-            latest_target
+            latest_target,
+            map
         };
         Ok(s)
     }
@@ -86,6 +100,8 @@ impl event::EventHandler for MainState {
         let place = |pt: [f32;2]| { [pt[0]*10f32, pt[1] * 10f32] };
 
         graphics::clear(ctx, [0.1, 0.2, 0.3, 1.0].into());
+        graphics::set_drawable_size(ctx, self.map.img.width() as f32, self.map.img.height() as f32)?;
+        graphics::draw(ctx, &self.map.img, DrawParam::new())?;
 
         let bob = &self.env.robots[0];
         let body = self.env.world.bodies.rigid_body(bob.body_handle).unwrap();
@@ -112,7 +128,7 @@ impl event::EventHandler for MainState {
         for (i, l) in text_lines.iter().enumerate() {
             let display = graphics::Text::new(l.as_str());
             let pos = Point2::new(2., (i as f32) * 20.);
-            graphics::draw(ctx, &display, (pos, 0.0, graphics::WHITE))?;
+            graphics::draw(ctx, &display, (pos, 0.0, graphics::BLACK))?;
         }
 
 
@@ -154,12 +170,23 @@ impl event::EventHandler for MainState {
     }
 }
 
+struct Conf {
+    map_name: String
+}
+
 fn main() -> ggez::error::GameResult {
 
-    let context_builder = ggez::ContextBuilder::new("goto", "Arthur Bit-Monnot");
+    let conf = Conf {
+        map_name: String::from("maps/base.jpg")
+    };
+
+    let context_builder = ggez::ContextBuilder::new("rsim", "Arthur Bit-Monnot")
+        .add_resource_path(std::path::PathBuf::from("."))
+        ;
     let (ctx, event_loop) = &mut context_builder.build()?;
 
-    let state = &mut MainState::new(ctx)?;
+
+    let state = &mut MainState::new(ctx, conf)?;
     event::run(ctx, event_loop, state)?;
 
     Ok(())

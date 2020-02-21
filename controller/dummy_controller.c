@@ -109,7 +109,7 @@ int direction(Pose self, Point target) {
 
     float dot_prod = rightward_x * target_dir_x + righward_y * target_dir_y;
 
-    if(fabs(dot_prod) < 0.0001) { // note the numer here is arbitrary
+    if(fabs(dot_prod) < 0.0001) { // note the number here is arbitrary
         return 0; // approximately center
     } else if(dot_prod < 0) {
         return -1; // left

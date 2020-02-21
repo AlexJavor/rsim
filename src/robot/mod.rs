@@ -155,13 +155,13 @@ impl crate::env::Simulated<World2D> for BotDesc {
         let lidar :  Box<dyn Fn(&World2D)> =  Box::new(move |world: &World2D| {
             let body = world.bodies.rigid_body(handle).unwrap();
             let position = body.position();
-            let num_rays = 300;
+            let num_rays = 200;
             let angle_inc = PI * 2. / num_rays as f64;
             let mut angles = Vec::with_capacity(num_rays);
             for i in 0..num_rays {
                 angles.push(i as f64 * angle_inc);
             }
-            let mut points = Vec::with_capacity(300);
+            let mut points = Vec::with_capacity(num_rays);
             for &angle in &angles {
                 let ray = Ray::new(
                     na::Point2::new(position.translation.vector[0], position.translation.vector[1]),

@@ -1,5 +1,5 @@
 use na::{Vector2};
-use nphysics2d::object::{DefaultBodySet, DefaultColliderSet, BodyPartHandle, RigidBody, DefaultBodyHandle, DefaultColliderHandle};
+use nphysics2d::object::{DefaultBodySet, DefaultColliderSet, BodyPartHandle, RigidBody, DefaultBodyHandle, DefaultColliderHandle, Ground};
 use nphysics2d::force_generator::DefaultForceGeneratorSet;
 use nphysics2d::joint::DefaultJointConstraintSet;
 use nphysics2d::world::{DefaultMechanicalWorld, DefaultGeometricalWorld, MechanicalWorld, GeometricalWorld};
@@ -8,14 +8,15 @@ use nphysics2d::world::{DefaultMechanicalWorld, DefaultGeometricalWorld, Mechani
 
 
 
-use ncollide2d::shape::{ShapeHandle};
+use ncollide2d::shape::{ShapeHandle, Cuboid};
 use nphysics2d::object::ColliderDesc;
 
 
 
 use crate::robot::{BotDesc};
 use crate::pubsub::{PubSub};
-
+use crate::Map;
+use ggez::Context;
 
 
 pub struct Sensor<World> {
@@ -48,15 +49,54 @@ pub(crate) struct World2D {
 }
 
 impl World2D {
-    pub fn new() -> Self {
-        World2D {
+    pub fn new(ctx: &mut Context, map: Option<&Map>) -> Self {
+        let mut world = World2D {
             mechanical_world: DefaultMechanicalWorld::new(Vector2::new(0.0, 0.)),
             geometrical_world: DefaultGeometricalWorld::new(),
             bodies: DefaultBodySet::new(),
             colliders: DefaultColliderSet::new(),
             joint_constraints: DefaultJointConstraintSet::new(),
             force_generators: DefaultForceGeneratorSet::new()
+        };
+
+        // build colliders of the map
+        if let Some(map) = map {
+            let pixel_shape = ShapeHandle::new(Cuboid::new(Vector2::new(map.pixel_size as f64/ 2., map.pixel_size as f64 /2.)));
+            let ground_handle = world.bodies.insert(Ground::new());
+            let rgbas = map.img.to_rgba8(ctx).unwrap();
+            let h_max = map.img.height() as usize;
+            let w_max = map.img.width() as usize;
+            let black = |h, w| {
+                if h >= h_max || w >= w_max {
+                    false
+                } else {
+                    let index = (h * w_max + w ) * 4;
+                    rgbas[index] < 20 || rgbas[index +1] < 20 || rgbas[index +2] < 20
+                }
+            };
+            let obstacle = |h, w| {
+              if !black(h,w) { false }
+              else {
+                  // this pixel is black, only consider it as an obstacle if the ones around are also black
+                  !(black(h-1, w) && black(h+1, w) && black(h, w-1) && black(h, w+1))
+                }
+            };
+            for w in 0..w_max {
+                for h in 0..h_max {
+                    if obstacle(h, w) {
+                        let x = w as f64 * map.pixel_size as f64;
+                        let y = h as f64 * map.pixel_size as f64;
+                        let co = ColliderDesc::new(pixel_shape.clone())
+                            .translation(Vector2::new(x, y))
+                            .build(BodyPartHandle(ground_handle, 0));
+                        world.colliders.insert(co);
+                    } else {
+                    }
+                }
+            }
         }
+
+        world
     }
 }
 

@@ -16,7 +16,7 @@ impl Meshes {
             [0f32, 0f32],
             10.,
             0.1,
-            Color::new(1.0, 1.0, 1.0, 1.0),
+            Color::new(0.3, 0.3, 0.3, 1.0),
         );
         mesh.line(
         &[[-2.5f32, 5f32],  [7f32, 0f32], [-2.5f32, -5f32]],
@@ -43,7 +43,7 @@ impl Meshes {
         )?;
         mesh.line(
             &[[-x, x],  [x, -x]],
-            2.0,
+            3.0,
             Color::new(1.0, 0.0, 0.0, 1.0),
         )?;
         let target = mesh.build(ctx)?;
