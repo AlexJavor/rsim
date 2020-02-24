@@ -16,7 +16,7 @@
  * - might start driving before being given target/position/obstacles
  */
 
-#define SAFETY_DIST 2.0
+#define SAFETY_DIST 1.8
 #define MAX_SPEED 2.0
 #define MAX_STEER 0.4
 
