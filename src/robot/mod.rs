@@ -14,6 +14,7 @@ use crate::robot::plugin::{Plugin, ControllerPlugin};
 use std::sync::Arc;
 use std::time::Duration;
 use crate::Opt;
+use rayon::prelude::*;
 
 #[allow(dead_code)]
 pub struct Robot {
@@ -171,31 +172,35 @@ impl crate::env::Simulated<World2D> for BotDesc {
             for i in 0..num_rays {
                 angles.push(i as f64 * angle_inc);
             }
-            let mut points = Vec::with_capacity(num_rays);
-            for &angle in &angles {
-                let ray = Ray::new(
-                    na::Point2::new(position.translation.vector[0], position.translation.vector[1]),
-                    na::Vector2::new(angle.cos(), angle.sin())
-                );
-                let collision_group = CollisionGroups::new();
-                let result = world.geometrical_world.interferences_with_ray(
-                    &world.colliders,
-                    &ray,
-                    &collision_group
-                );
 
-                let mut min_toi = INFINITY;
-
-                for (handle, _, inter) in result {
-                    if handle != self_collider {
-                        min_toi = min_toi.min(inter.toi);
+            let orig = na::Point2::new(position.translation.vector[0], position.translation.vector[1]);
+            let collision_group = CollisionGroups::new();
+            let points: Vec<Point> = angles.par_iter()
+                .filter_map(|angle| {
+                    let ray = Ray::new(
+                        orig,
+                        na::Vector2::new(angle.cos(), angle.sin())
+                    );
+                    let result = world.geometrical_world.interferences_with_ray(
+                        &world.colliders,
+                        &ray,
+                        &collision_group
+                    );
+                    let mut min_toi = INFINITY;
+                    for (handle, _, inter) in result {
+                        if handle != self_collider {
+                            min_toi = min_toi.min(inter.toi);
+                        }
                     }
-                }
-                if min_toi.is_finite() {
-                    let pt = ray.point_at(min_toi);
-                    points.push(Point { x: pt.x as f32, y: pt.y as f32});
-                }
-            }
+                    if min_toi.is_finite() {
+                        let pt = ray.point_at(min_toi);
+                        Some(Point { x: pt.x as f32, y: pt.y as f32})
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
             scan_pub.send(PointCloud { points }).log()
         });
 
