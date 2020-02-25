@@ -14,7 +14,6 @@ use crate::robot::plugin::{Plugin, ControllerPlugin};
 use std::sync::Arc;
 use std::time::Duration;
 use crate::Opt;
-use rayon::prelude::*;
 
 #[allow(dead_code)]
 pub struct Robot {
@@ -163,19 +162,28 @@ impl crate::env::Simulated<World2D> for BotDesc {
         let self_collider = self.collider;
         let scan_pub = pubsub.poster(&self.scan_topic).unwrap();
 
-        let lidar :  Box<dyn Fn(&World2D)> =  Box::new(move |world: &World2D| {
+        let fps = 60;
+        let lidar_freq = 6;
+        let num_rays = 200;
+        let rays_by_step = num_rays * lidar_freq / fps;
+        let mut next_ray = 0;
+        let mut previous_points = Vec::with_capacity(num_rays);
+
+        let lidar :  Box<dyn FnMut(&World2D)> =  Box::new(move |world: &World2D| {
             let body = world.bodies.rigid_body(handle).unwrap();
             let position = body.position();
-            let num_rays = 200;
+
             let angle_inc = PI * 2. / num_rays as f64;
             let mut angles = Vec::with_capacity(num_rays);
-            for i in 0..num_rays {
+            let last = (next_ray + rays_by_step).min(num_rays);
+            for i in next_ray..last {
                 angles.push(i as f64 * angle_inc);
             }
+            next_ray = last;
 
             let orig = na::Point2::new(position.translation.vector[0], position.translation.vector[1]);
             let collision_group = CollisionGroups::new();
-            let points: Vec<Point> = angles.par_iter()
+            let mut points: Vec<Point> = angles.iter()
                 .filter_map(|angle| {
                     let ray = Ray::new(
                         orig,
@@ -201,13 +209,19 @@ impl crate::env::Simulated<World2D> for BotDesc {
                 })
                 .collect();
 
-            scan_pub.send(PointCloud { points }).log()
+            previous_points.append(&mut points);
+
+            if next_ray >= num_rays {
+                next_ray = 0;
+                scan_pub.send(PointCloud { points: previous_points.clone() }).log();
+                previous_points.clear();
+            }
         });
 
 
         vec![
             Sensor { rate: 30.0, func: Box::new(sense_pose) },
-            Sensor { rate: 5.0, func: Box::new(lidar)}
+            Sensor { rate: fps as f64, func: Box::new(lidar)}
         ]
     }
 

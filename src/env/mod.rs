@@ -21,7 +21,7 @@ use ggez::Context;
 
 pub struct Sensor<World> {
     pub rate: f64,
-    pub func: Box<dyn Fn(&World)>
+    pub func: Box<dyn FnMut(&World)>
 }
 pub type Actuator<World>  = Box<dyn Fn(&mut World)>;
 
