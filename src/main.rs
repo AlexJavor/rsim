@@ -27,7 +27,7 @@ use crate::view::Meshes;
 use crate::messages::{PointCloud, Point};
 use crate::pubsub::Fluent;
 use ggez::event::MouseButton;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 struct Map {
     img: ggez::graphics::Image,
@@ -48,7 +48,8 @@ struct MainState {
     latest_target: Fluent<Point>,
     map: Map,
     conf: Opt,
-    result: Option<SimResult>
+    result: Option<SimResult>,
+    last_render: Instant
 }
 
 
@@ -105,7 +106,8 @@ impl MainState {
             latest_target,
             map,
             result: None,
-            conf: conf.clone()
+            conf: conf.clone(),
+            last_render: Instant::now()
         };
         Ok(s)
     }
@@ -113,9 +115,13 @@ impl MainState {
 
 impl event::EventHandler for MainState {
     fn update(&mut self, ctx: &mut Context) -> Result<(), GameError> {
-        while !ggez::timer::check_update_time(ctx,60) {
+        let target_dt = 1.0 / 60.0; // dt for 60 fps
+        let target_dt = (target_dt * 1_000_000.0) as u128; // as microsecs
+
+        while self.last_render.elapsed().as_micros() < target_dt {
             std::thread::sleep(Duration::from_micros(100));
         }
+        self.last_render = Instant::now();
 
         self.env.step();
 
