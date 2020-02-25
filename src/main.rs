@@ -27,6 +27,7 @@ use crate::view::Meshes;
 use crate::messages::{PointCloud, Point};
 use crate::pubsub::Fluent;
 use ggez::event::MouseButton;
+use std::time::Duration;
 
 struct Map {
     img: ggez::graphics::Image,
@@ -112,6 +113,10 @@ impl MainState {
 
 impl event::EventHandler for MainState {
     fn update(&mut self, ctx: &mut Context) -> Result<(), GameError> {
+        while !ggez::timer::check_update_time(ctx,60) {
+            std::thread::sleep(Duration::from_micros(100));
+        }
+
         self.env.step();
 
         let bob = &self.env.robots[0];
