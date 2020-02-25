@@ -11,7 +11,7 @@ While the simulator is built in Rust, it provides a simple C interface for imple
 
 First, you should have a working rust toolchain : https://doc.rust-lang.org/cargo/getting-started/installation.html
 
-
+    sudo apt install libasound2-dev libudev-dev   # install uncommon dependencies
     git clone https://github.com/arthur-bit-monnot/rsim.git
     cd rsim
     cargo build --release       # build (might be long)
