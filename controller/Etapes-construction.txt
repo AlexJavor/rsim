@@ -1,0 +1,101 @@
+2 ETAPES DE CONSTRUCTION : 
+SIMPLE : implémentation de l'arbre de décision NDR
+ADVANCED :
+    - prise en compte de la largeur du robot dans le cas HSGR
+    - mise en place d'une "mémoire" qui permet de favoriser les déplacements qui n'ont pas encore été effectués par le robot (risque de boucles)
+    - mise en place d'une situation d'arrêt si il n'est pas possible d'atteindre le gap (timer + exploration de chemins)
+    - implémentation de ND+ avec LGSR (obstacles dans la zone de sécurité et goal dans la free walking area)
+
+
+DEFINE : 
+high safety = 3
+LargeValleyAngle = pi/4
+
+
+free walking area : 
+    - définir une distance maximale DM pour la visibilité des obstacles
+    - définition des régions (chaque esapce entre 2 gaps)
+        - vallées reperées par les discontinuités dans l'analyse du terrain (distance en fonction de l'angle autour du robot)
+    - calcul du gap le plus proche du goal : plus petit angle entre la goaldirection et le gap
+    - calcul de la distance entre les 2 gaps de la vallée, élimination des vallée si trop étroite
+    - calcul de l'angle de la vallée AV
+
+
+
+
+si objectif visible : toute la zone visible dans la direction de l'objectif
+si objectif invisible : on élargit petit à petit l'angle 
+
+
+
+
+
+ARBRE DE DÉCISION : 
+
+SI zone >= high safety ALORS                                                  HIGH SAFETY
+    Si (capteurs captent rien dans la direction du goal) ALORS                HSGR
+        Drives the robot towards the goal                                   
+    Sinon 
+        SI AV > LargeValleyAngle ALORS                                        HSWR
+            Moves the robot alongside the obstacles (1)
+        Sinon                                                                 HSNR
+            Moves the robot in the center of the walking area (2)
+Sinon                                                                         LOW SAFETY 
+                                                                              LS1
+    SI (au moins un obstacle est présent dans la zone de sécuri-té mais d'un seul coté de free walking area) ALORS
+
+
+    SINON                                                                     LS2
+        Centre le robot entre les 2 obstacles les plus proches
+
+
+
+FONCTIONS BOOLEENNES : 
+    - HS 
+    - HSGR
+    - HSWR
+    - LS1 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Pour LS1 : 
+    - La  vitesse  choisie  est  alors  proportionnellement inverse à la proximité de l'obstacle (définir vitesse min)
+    - sj : Sector with the highest value in the RND, that exceeds the security nearness, on a side of the rising discontinuity of the selected valley.
+           It corresponds to the closer obstacle.     
+    - si : Sector corresponding to the rising discontiuity (gap) of the selected valley( free walking area)
+           En gros le gap le plus proche du goal
+    https://webdiis.unizar.es/~jminguez/ND-IROS00.pdf (page 4)
+    
+Pour LS2 :  
+    - si et sj : les 2 obstacles les plus proches 
+    REMARQUE : arriver à différencier les objets pour que si et sj appartiennent bien à 2 obstacles différents, et ne soient pas 2 points voisins d'un même obstacle.
+    - smed : (si+sj) / 2
+
+
+
+
+
+
+
+
+(1) calcul de la trajectoire à prendre : Robot R, Gap G, Trajectory Point T, 
+    tan alpha = GT/RG 
+    bouger le robot dans la direction définie par l'angle alpha par rapport à RG.
+    
+
+
+
+(2) diviser angle / 2 puis tt droit lol
+
+
