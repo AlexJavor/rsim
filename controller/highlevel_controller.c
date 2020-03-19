@@ -20,12 +20,24 @@
 #define MAX_SPEED 2.0
 #define MAX_STEER 0.4
 //High state definition
-#define HIGH_SAFETY 3
+#define HIGH_SAFETY 3.0
+#define ROBOT_WIDTH 1.0
+
+typedef struct PointCylindrique {
+    float dist, angle;
+} PointCyl;
+
+typedef struct Valley {
+    float Alpha1, Alpha2;       //Angle un radius, the valley is oriented according to the trigo convention
+    Point edge1, edge2;         //Edges of the valley
+} Valley;
 
 typedef struct Data {
     Pose current;
     Point target;
     float closest_obstacle;
+    Valley free_walking_area;
+    int pathClear;
 } Data;
 
 Data *init(void) {
@@ -33,6 +45,29 @@ Data *init(void) {
     // careful, not initialized...
     return data;
 }
+
+/*
+ * Couple of functions to convert absolute position to relative cylindric points
+ *  -> Analisis of discontinuity and finding Valleys
+ */
+PointCyl absToCyl(const Point p, Data *data){
+    PointCyl cyl;
+    cyl.dist = sqrt(pow(p.x-data->current.x, 2.0) + pow(p.y-data->current.y,2.0));
+    int tan = (p.y - data->current.y)/(p.x - data->current.x);
+    int alpha = atan(tan);
+    cyl.angle = alpha - data->current.theta ; //don't perfectly work
+
+    return cyl;
+}
+
+PointCyl *tabAbsToTabCyl (Data *data, const Point *points, uint32_t len){
+    PointCyl* tabCyl = malloc(len*sizeof(PointCyl));
+    for (int i=0; i< len; i++) {
+        tabCyl[i] = absToCyl(points[i], data);
+    }
+    return tabCyl;
+}
+
 
 
 void free_data(Data *data) {
@@ -51,6 +86,27 @@ void on_new_pose(Data *data, Pose p) {
     data->current = p;
 }
 
+/*
+ * Function which gives
+ * 0 if the direction from the robot to the target is free
+ * 1 if it has at least an obstacle
+ * Possible Upgrade : useless to check all the points : if the angle between the obstacle and the target is above 90° then it can't be on the way
+ */
+void pathIsClear(PointCyl *points, Data *data, uint32_t len){
+    int pathClear = 0;
+    float dist ;
+    printf("Checking path\n");
+    for (int i=0; i< len; i++) {
+       // dist = points[i].dist * sin(abs(absToCyl(data->target, data).angle-points[i].angle));  //verify that the width  of the robot matches the path's one
+       dist = points[i].angle ;
+        printf("dist = %f\n", dist);
+        if (dist < (ROBOT_WIDTH/2)){
+            //printf("obstacle detected\n");
+            pathClear = 1;
+        }
+    }
+    data->pathClear = pathClear;
+}
 
 void on_new_scan(Data *data, const Point *points, uint32_t len) {
     // distance to closest obstacle
@@ -65,30 +121,51 @@ void on_new_scan(Data *data, const Point *points, uint32_t len) {
             min_dist = d;
         }
     }
+    PointCyl *tabCyl = tabAbsToTabCyl(data,points, len);
     // update in data
     data->closest_obstacle = min_dist;
+    pathIsClear(tabCyl,data,len);   //Update of path state from robot to target
 }
 
 int direction(Pose, Point);
 
+
+
 Command get_command(Data *data) {
     Command cmd;
     Point target = data->target;
-    if(data->closest_obstacle > SAFETY_DIST) {
-        // got some margin
-        cmd.forward_vel = MAX_SPEED;
-        int dir = direction(data->current, target);
-        if(dir == 0) {
-            cmd.steering = 0;
-        } else if(dir == -1) {
-            // GO LEFT !!!!
-            cmd.steering = -MAX_STEER;
+    //Decision Tree of ND Navigation ---------
+    if (data->closest_obstacle > HIGH_SAFETY) {
+        if (data->pathClear == 0){
+            //HSGR ----------------------------
+            cmd.forward_vel = MAX_SPEED;
+            int dir = direction(data->current, target);
+            if (dir == 0) {
+                cmd.steering = 0;
+            } else if (dir == -1) {
+                // GO LEFT !!!!
+                cmd.steering = -MAX_STEER;
+            } else {
+                // GO RIGHT !!!!!!
+                cmd.steering = MAX_STEER;
+            }
         } else {
-            // GO RIGHT !!!!!!
-            cmd.steering = MAX_STEER;
+            //HSWR ou HS -----------------------------
+            //TODO
+            cmd.forward_vel = MAX_SPEED;
+            int dir = direction(data->current, target);
+            if (dir == 0) {
+                cmd.steering = 0;
+            } else if (dir == -1) {
+                // GO LEFT !!!!
+                cmd.steering = -MAX_STEER;
+            } else {
+                // GO RIGHT !!!!!!
+                cmd.steering = MAX_STEER;
+            }
         }
     } else {
-        // too close, stop
+        //LS1 ou LS2
         cmd.forward_vel = 0.0;
         cmd.steering = 0.0;
     }
