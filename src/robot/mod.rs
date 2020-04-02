@@ -162,47 +162,66 @@ impl crate::env::Simulated<World2D> for BotDesc {
         let self_collider = self.collider;
         let scan_pub = pubsub.poster(&self.scan_topic).unwrap();
 
-        let lidar :  Box<dyn Fn(&World2D)> =  Box::new(move |world: &World2D| {
+        let fps = 60;
+        let lidar_freq = 6;
+        let num_rays = 200;
+        let rays_by_step = num_rays * lidar_freq / fps;
+        let mut next_ray = 0;
+        let mut previous_points = Vec::with_capacity(num_rays);
+
+        let lidar :  Box<dyn FnMut(&World2D)> =  Box::new(move |world: &World2D| {
             let body = world.bodies.rigid_body(handle).unwrap();
             let position = body.position();
-            let num_rays = 200;
+
             let angle_inc = PI * 2. / num_rays as f64;
             let mut angles = Vec::with_capacity(num_rays);
-            for i in 0..num_rays {
+            let last = (next_ray + rays_by_step).min(num_rays);
+            for i in next_ray..last {
                 angles.push(i as f64 * angle_inc);
             }
-            let mut points = Vec::with_capacity(num_rays);
-            for &angle in &angles {
-                let ray = Ray::new(
-                    na::Point2::new(position.translation.vector[0], position.translation.vector[1]),
-                    na::Vector2::new(angle.cos(), angle.sin())
-                );
-                let collision_group = CollisionGroups::new();
-                let result = world.geometrical_world.interferences_with_ray(
-                    &world.colliders,
-                    &ray,
-                    &collision_group
-                );
+            next_ray = last;
 
-                let mut min_toi = INFINITY;
-
-                for (handle, _, inter) in result {
-                    if handle != self_collider {
-                        min_toi = min_toi.min(inter.toi);
+            let orig = na::Point2::new(position.translation.vector[0], position.translation.vector[1]);
+            let collision_group = CollisionGroups::new();
+            let mut points: Vec<Point> = angles.iter()
+                .filter_map(|angle| {
+                    let ray = Ray::new(
+                        orig,
+                        na::Vector2::new(angle.cos(), angle.sin())
+                    );
+                    let result = world.geometrical_world.interferences_with_ray(
+                        &world.colliders,
+                        &ray,
+                        &collision_group
+                    );
+                    let mut min_toi = INFINITY;
+                    for (handle, _, inter) in result {
+                        if handle != self_collider {
+                            min_toi = min_toi.min(inter.toi);
+                        }
                     }
-                }
-                if min_toi.is_finite() {
-                    let pt = ray.point_at(min_toi);
-                    points.push(Point { x: pt.x as f32, y: pt.y as f32});
-                }
+                    if min_toi.is_finite() {
+                        let pt = ray.point_at(min_toi);
+                        Some(Point { x: pt.x as f32, y: pt.y as f32})
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            previous_points.append(&mut points);
+
+            if next_ray >= num_rays {
+                next_ray = 0;
+                scan_pub.send(PointCloud { points: previous_points.clone() }).log();
+                previous_points.clear();
             }
-            scan_pub.send(PointCloud { points }).log()
         });
 
 
         vec![
             Sensor { rate: 30.0, func: Box::new(sense_pose) },
-            Sensor { rate: 5.0, func: Box::new(lidar)}
+            Sensor { rate: fps as f64, func: Box::new(lidar)}
         ]
     }
 
