@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "controller.h"
 
@@ -95,16 +96,27 @@ void on_new_pose(Data *data, Pose p) {
 void pathIsClear(PointCyl *points, Data *data, uint32_t len){
     int pathClear = 0;
     float dist ;
-    printf("Checking path\n");
-    for (int i=0; i< len; i++) {
-       // dist = points[i].dist * sin(abs(absToCyl(data->target, data).angle-points[i].angle));  //verify that the width  of the robot matches the path's one
-       dist = points[i].angle ;
-        printf("dist = %f\n", dist);
-        if (dist < (ROBOT_WIDTH/2)){
-            //printf("obstacle detected\n");
-            pathClear = 1;
+    float angle;
+    FILE* fpoints = fopen("fcoordonnees.txt", "a");
+     if (fpoints != NULL)
+    {
+        for (int i=0; i< len; i++) {
+           dist = points[i].dist * sin(abs(absToCyl(data->target, data).angle-points[i].angle));  //verify that the width  of the robot matches the path's one
+           angle = points[i].angle ;
+            //printf("dist = %f, angle = %f;\n", dist, angle);
+            fprintf(fpoints, "%f\t%f \n", angle, dist);
+            if (dist < (ROBOT_WIDTH/2)){
+                //printf("obstacle detected\n");
+                pathClear = 1;
+            }
         }
+        fprintf(fpoints, "\n;\n");
+        fclose(fpoints);
     }
+     else
+         {
+         printf("Impossible d'ouvrir le fichier fpoints\n");
+     }
     data->pathClear = pathClear;
 }
 

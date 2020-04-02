@@ -113,9 +113,9 @@ impl MainState {
 
 impl event::EventHandler for MainState {
     fn update(&mut self, ctx: &mut Context) -> Result<(), GameError> {
-        while !ggez::timer::check_update_time(ctx,60) {
-            std::thread::sleep(Duration::from_micros(100));
-        }
+        //while !ggez::timer::check_update_time(ctx,60) {
+            std::thread::sleep(Duration::from_micros(3000));
+        //}
 
         self.env.step();
 
