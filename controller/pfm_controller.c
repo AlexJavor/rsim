@@ -17,19 +17,20 @@
  */
 
 #define SAFETY_DIST 1.8
-#define MAX_SPEED 2.0
-#define MAX_STEER 0.4
+#define MAX_SPEED 10.0
+#define MAX_STEER 3.0
 
 #define D0 20.0
 #define NB_OBSTACLES 200
 #define K_ATT -1000.0
-#define K_REF 0.0
+#define K_REF 22.5
 
 typedef struct Data {
     Pose current;
     Point target;
     float closest_obstacle;
     // As in the mod.rs file, we have decided to take 200 points
+    int nb_obstacles;
     Point obstacles[NB_OBSTACLES];
 } Data;
 
@@ -39,25 +40,22 @@ Data *init(void) {
     return data;
 }
 
-
 void free_data(Data *data) {
     free(data);
 }
 
-
 void on_new_target(Data *data, Point target) {
     data->target = target;
 }
-
-
 
 void on_new_pose(Data *data, Pose p) {
     // update current pose
     data->current = p;
 }
 
-
 void on_new_scan(Data *data, const Point *points, uint32_t len) {
+    // Number of obstacles seen by the lidar (obstacles array length)
+    data->nb_obstacles = len;
     // distance to closest obstacle
     float min_dist = 9999999.0;
     Pose cur = data->current;
@@ -73,6 +71,10 @@ void on_new_scan(Data *data, const Point *points, uint32_t len) {
         if(d < min_dist) {
             min_dist = d;
         }
+    }
+    Point infinit_point = {100000,100000};
+    for(int i = len; i < NB_OBSTACLES; i++){
+        data->obstacles[i] = infinit_point;
     }
     data->closest_obstacle = min_dist;
 }
@@ -137,6 +139,9 @@ Vector Attractive_Force(Data *data){
 
     Vector u_vector = mult_vector_by_const(current_target_vector, (1.0/current_target_dist));
     Vector f_att = mult_vector_by_const(u_vector, K_ATT);
+    Vector distance = {f_att.x*2.0/current_target_dist, f_att.y*2.0/current_target_dist};
+    f_att = add_vectors(f_att,distance);
+    //printf("f_att = (%f,%f)\n", f_att.x, f_att.y);
     return f_att;
 }
 
@@ -149,6 +154,7 @@ Vector Repulsive_Force(Data *data, int cur_obst){
 
     Vector u_vector = mult_vector_by_const(current_obstacle_vector, (1.0/current_obstacle_dist));
     Vector f_ret = mult_vector_by_const(u_vector, K_REF);
+    //printf("f_ret = (%f,%f)\n", f_ret.x, f_ret.y);
     return f_ret;
 }
 
@@ -156,25 +162,28 @@ Vector Total_Force(Data *data){
     Vector f_att = Attractive_Force(data);
     Vector f_ret = {0.0,0.0};
     int i;
-    for(i = 0; i < NB_OBSTACLES; i++){
+    for(i = 0; i < data->nb_obstacles; i++){
         f_ret = add_vectors(f_ret, Repulsive_Force(data, i));
     }
     Vector f_total = add_vectors(f_att, f_ret);
+    //printf("f_att   = (%f,%f)\n", f_att.x, f_att.y);
+    //printf("f_total = (%f,%f)\n", f_total.x, f_total.y);
     return f_total;
 }
 
 float force_reference_angle(Vector f_total){
     Vector v_ref = {1.0,0.0};
     float scal_prod = scalar_product(v_ref, f_total);
+    //printf("scal_prod = %f\n", scal_prod);
     float f_total_length = sqrt(powf(f_total.x,2) + powf(f_total.y,2));
-    
+    //printf("f_total_length = %f\n", f_total_length);
     float f_ref_angle = acosf(scal_prod/f_total_length*1.0);
-    // Adjust the angle in order to have it between -Pi and +Pi
-    if(f_ref_angle > M_PI){
-        f_ref_angle -= 2*M_PI;
-    } else if (f_ref_angle < -M_PI){
-        f_ref_angle += 2*M_PI;
+    
+    if(f_total.y < 0){
+        f_ref_angle *= -1;
     }
+
+    printf("f_ref_angle = %f\n", f_ref_angle);
     return f_ref_angle;
 }
 
@@ -189,7 +198,7 @@ int direction(Data *data) {
     float theta_robot = data->current.theta;
     // Difference between the 2 angles
     float diff_angle = theta_opt - theta_robot;
-        
+    
     // Adjust the angle in order to have it between -Pi and +Pi
     if(diff_angle > M_PI){
         diff_angle -= 2*M_PI;
@@ -197,7 +206,7 @@ int direction(Data *data) {
         diff_angle += 2*M_PI;
     }
 
-    if(fabs(diff_angle) < 0.01) { // note the number here is arbitrary
+    if(fabs(diff_angle) < 0.00001) { // note the number here is arbitrary
         return 0; // approximately center
     } else if(diff_angle > 0) {
         return -1; // left
