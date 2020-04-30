@@ -54,9 +54,9 @@ Data *init(void) {
 PointCyl absToCyl(const Point p, Data *data){
     PointCyl cyl;
     cyl.dist = sqrt(pow(p.x-data->current.x, 2.0) + pow(p.y-data->current.y,2.0));
-    int tan = (p.y - data->current.y)/(p.x - data->current.x);
-    int alpha = atan(tan);
-    cyl.angle = alpha - data->current.theta ; //don't perfectly work
+    float tan = (p.y - data->current.y)/(p.x - data->current.x);
+    float alpha = atan(tan);
+    cyl.angle = alpha; //don't perfectly work
 
     return cyl;
 }
@@ -100,15 +100,18 @@ void pathIsClear(PointCyl *points, Data *data, uint32_t len){
     FILE* fpoints = fopen("fcoordonnees.txt", "a");
      if (fpoints != NULL)
     {
+     	fprintf(fpoints, "len = %d \n", len);
         for (int i=0; i< len; i++) {
-           dist = points[i].dist * sin(abs(absToCyl(data->target, data).angle-points[i].angle));  //verify that the width  of the robot matches the path's one
-           angle = points[i].angle ;
+        	PointCyl targetCyl = absToCyl(data->target, data);
+            dist = points[i].dist * sin(abs(targetCyl.angle-points[i].angle));  //verify that the width  of the robot matches the path's one
+            angle = points[i].angle ;
             //printf("dist = %f, angle = %f;\n", dist, angle);
             fprintf(fpoints, "%f\t%f \n", angle, dist);
-            if (dist < (ROBOT_WIDTH/2)){
-                //printf("obstacle detected\n");
+            if ((dist < (ROBOT_WIDTH/2)) && (points[i].dist < targetCyl.dist) && (pathClear == 0)){
+                printf("obstacle detected\n");
                 pathClear = 1;
             }
+            fprintf(fpoints, "path is clear = %d \n", pathClear);
         }
         fprintf(fpoints, "\n;\n");
         fclose(fpoints);
