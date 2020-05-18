@@ -20,11 +20,11 @@
  * ./rsim --controller controller/libhighlevel_controller.so --map maps/base.jpg -t 180
  */
 
-#define SAFETY_DIST 1.8
-#define MAX_SPEED 2.0
-#define MAX_STEER 0.4
+#define SAFETY_DIST 1.0//1.8
+#define MAX_SPEED 2
+#define MAX_STEER 0.7
 //High state definition
-#define HIGH_SAFETY 6.0
+#define HIGH_SAFETY 6.0//6
 #define ROBOT_WIDTH 1.0
 #define LARGE_VALLEY 1.5 //the angle size of a valley in radius (1.5 rad ~ 90 deg)
 
@@ -36,6 +36,10 @@ typedef struct Valley {
     PointCyl leftEdge, rightEdge, center;         //Edges of the valley
 } Valley;
 
+typedef struct Obstacle{
+	float alpha, theta, dist;
+} Obstacle;
+
 typedef struct Data {
     Pose current;
     Point target;
@@ -45,6 +49,7 @@ typedef struct Data {
     int pathClear;
 	pthread_mutex_t* mutex_data;
 	int ndSituation;
+	int obstacle_situation;
 } Data;
 
 Data *init(void) {
@@ -78,7 +83,7 @@ Valley newValley(float rightEdgeAngle, float rightEdgeDist,float leftEdgeAngle,f
 
 PointCyl absToCyl(const Point p, Pose current){
 	PointCyl cyl;
-	cyl.dist = sqrt(pow(p.x - current.x , 2.0) + pow(p.y - current.y , 2.0));
+	cyl.dist = sqrtf(pow(p.x - current.x , 2.0) + pow(p.y - current.y , 2.0));
 	float theta;
 	if (p.x >= current.x){	//Il y a pb de symétrie, il faut décaler de PI/2
 		float sintheta = (p.y - current.y) / cyl.dist ;
@@ -121,6 +126,7 @@ PointCyl *tabAbsToTabCyl (Pose current, Point target, const Point *points, uint3
 	qsort(tabCyl, len, sizeof(PointCyl), cmpfunc);
     return tabCyl;
 }
+
 
 /**
  * @param vallee
@@ -191,7 +197,7 @@ int pathIsClear(PointCyl *points, Pose current, Point target, uint32_t len){
                 //printf("obstacle detected dist : %f\n", fabs(dist));
                 pathClear = 1;
             }
-            fprintf(fpoints, "path is clear = %d \n", pathClear);
+            //qfprintf(fpoints, "path is clear = %d \n", pathClear);
         }
 		//printf ("target dist : %f, angle %f\n",targetCyl.dist,targetCyl.angle*180/M_PI);
         //printf("-------------------------------------------------------------------------------------------------\n");
@@ -217,9 +223,9 @@ int free_vector(PointCyl vector, PointCyl *points, uint32_t len){
 	int vector_free = 0;
 	float dist;
 	for (int i=0; i< len; i++) {
-		dist = points[i].dist * sin(fabs(vector.angle-points[i].angle));  //verify that the width  of the robot matches the path's one
+		dist = points[i].dist * sinf(fabs(vector.angle-points[i].angle));  //verify that the width  of the robot matches the path's one
 		//dist est la distance entre un obstacle et le vecteur (Robot---Point)
-		if ((fabs(dist) < (ROBOT_WIDTH + SAFETY_DIST)) && (vector_free == 0)&& (points[i].dist < vector.dist)){// && (points[i].dist < targetCyl.dist) (dist < (ROBOT_WIDTH/2))
+		if ((fabs(dist) < (ROBOT_WIDTH/2 + SAFETY_DIST)) && (vector_free == 0) && (points[i].dist < vector.dist)){// && (points[i].dist < targetCyl.dist) (dist < (ROBOT_WIDTH/2))
 			//obstacle detected
 			vector_free= 1;
 		}
@@ -229,7 +235,7 @@ int free_vector(PointCyl vector, PointCyl *points, uint32_t len){
 
 /**
  *
- * @param freeVector : Free vector un the valley
+ * @param freeVector : Free vector in the valley
  * @param points : Sorted by angle obstacle tab
  * @param len : number of obstacle
  * @return Valley : the two edges of the valley
@@ -267,7 +273,7 @@ Valley findValley(PointCyl freeVector, PointCyl *points, uint32_t len){
 	vallee.rightEdge = rightEdge;
 	return vallee;
 }
-
+//Both functions doesn't work : find not existing valleys or too much obstacles
 /*Doesn't Work (Impossible to implement, to know what is a valley (need discontinuities)
 Valley* findTabValley( const Point *points, Pose current, Point target, uint32_t len){
 	Valley *tabValley = malloc(len*sizeof(Valley));
@@ -324,7 +330,7 @@ Valley* findTabValley( const Point *points, Pose current, Point target, uint32_t
 					tabValley[indiceTabValley] = v;
 					indiceTabValley ++;
 				}else{
-					printf("Incorrect valley WTFFFFFFF !\n");
+					printf("Incorrect valley !\n");
 				}
 			}
 		}
@@ -338,6 +344,54 @@ Valley* findTabValley( const Point *points, Pose current, Point target, uint32_t
 	return tabValley;
 }
 */
+/*Obstacle* findTabObstacle(PointCyl *points, uint32_t len){
+	Obstacle *tabObstacle = malloc(len*sizeof(Obstacle));
+	int i = 0;
+	PointCyl edge1 = points[0];
+	PointCyl edge2;
+	Obstacle obstacle;
+	for (int o = 1; o < len; o++){
+		edge2 = points[o];
+		if (fabs(edge1.dist-edge2.dist) > 3*ROBOT_WIDTH){
+			printf("Obstacle fully detected : distance discontinuity \n");
+			obstacle.alpha = edge1.angle;
+			obstacle.theta = points[o-1].angle;
+			obstacle.dist = (edge1.dist +  points[o-1].dist)/2;
+			tabObstacle[i++] = obstacle;
+			edge1 = points[o];
+			printf("New obstacle \n");
+		}else if (fabs(sinf(edge1.angle - edge2.angle) * edge1.dist) > 3*ROBOT_WIDTH) {
+			printf("Obstacle fully detected : angle discontinuity \n");
+			obstacle.alpha = edge1.angle;
+			obstacle.theta = points[o - 1].angle;
+			obstacle.dist = (edge1.dist + points[o - 1].dist) / 2;
+			tabObstacle[i++] = obstacle;
+			edge1 = points[o];
+			printf("New obstacle \n");
+		}else{
+			printf("Obstacle processing \n");
+		}
+	}
+	edge2 = points[0];
+	if (fabs(edge1.dist-edge2.dist) > 3 * ROBOT_WIDTH || fabs(sinf(edge1.angle - edge2.angle) * edge1.dist) > 3 * ROBOT_WIDTH){
+		printf("Obstacle fully detected \n");
+		obstacle.alpha = edge1.angle;
+		obstacle.theta = points[len-1].angle;
+		obstacle.dist = (edge1.dist +  points[len-1].dist)/2;
+		tabObstacle[i++] = obstacle;
+	} else {
+		printf("Obstacle fully detected \n");
+		tabObstacle[0].alpha = edge1.angle;
+	}
+	obstacle.dist=-1;
+	obstacle.alpha=-1;
+	obstacle.theta=-1;
+	while(i < len){
+		tabObstacle[i] = obstacle;
+		i++;
+	}
+	return tabObstacle;
+}*/
 
 /**
  * @param points
@@ -377,22 +431,61 @@ PointCyl closest_gap(PointCyl *points, Pose current, Point targetPoint, uint32_t
 		//printf("It's A Trap !!!!!!!\n");
 		winner.dist = -1;
 	}
-	if (cote == 1){
-		winner.angle += 0.2;
-	}else if (cote ==2){
-		rvg.angle -= 0.2;
+	if (cote == 1){ //droite
+		winner.angle += 0.78; //on prends une marge de sécurité de 45 deg
+	}else if (cote ==2){ //gauche
+		rvg.angle -= 0.78;   //on prends une marge de sécurité de 45 deg
 	}
 	//printf("closest_Gap distance = %f, angle %f", winner.dist, winner.angle*180/M_PI);
 	return winner;
 }
 
+/**
+ *
+ * @param current
+ * @param points
+ * @param len
+ * @return 0 if no obstacle, 1 if obstacle only at left, 2 if only at right, 3 if both
+ */
 
+/*****DEBUG******
+ * to test, place this in on NewScan after creating tabCyl
+int os = obstacleSituation(data->current, tabCyl, size);
+if (os == 0){
+printf("pas d'obstacle \n");
+}else if(os == 1){
+printf("Points situé à gauche\n");
+}else if(os == 2){
+printf("Points situé à droite\n");
+}else if (os == 3){
+printf("Points situé des deux cotés\n");
+}
+****DEBUG*******/
+int obstacleSituation(Pose current, PointCyl *points,uint32_t len){
+	int droite = 0;
+	int gauche = 0;
+	float angleDiff;
+	for (int i = 0; i<len; i++){
+		angleDiff = points[i].angle - current.theta;
+		if (angleDiff > M_PI) {
+			angleDiff -= 2 * M_PI;
+		} else if (angleDiff < -M_PI) {
+			angleDiff += 2 * M_PI;
+		}
+		if (points[i].angle - current.theta < 0 ){
+			gauche = 1;
+		} else {
+			droite = 1;
+		}
+	}
+	return (2*droite + gauche);
+}
 
 void on_new_scan(Data *data, const Point *points, uint32_t len) {
 	//printf("Mutex Debug : onNewScan : Prise \n");
 	/*************************************************/
 	pthread_mutex_lock(data->mutex_data);
-	int size = 0;
+	uint32_t size = 0;
 	for (int i = 0; i<len; i++){
 		if ((fabs(points[i].x-data->target.x) > 1 )|| (fabs(points[i].y-data->target.y) > 1)){
 			size ++;
@@ -406,15 +499,19 @@ void on_new_scan(Data *data, const Point *points, uint32_t len) {
 			j++;
 		}
 	}
+	PointCyl *tabCyl = tabAbsToTabCyl(data->current, data->target,pointsWithoutTarget, len);
+	PointCyl targetCyl = absToCyl(data->target, data->current);
     Pose cur = data->current;
+	PointCyl fleeingTarget = targetCyl;
+	fleeingTarget.angle = data->current.theta;
+	/*
     printf("New Scan ********************************************************************************\n");
-    printf("target angle %f, dist %f\n", absToCyl(data->target, data->current).angle, absToCyl(data->target, data->current).dist);
-    /*Valley* tabValley = findTabValley(pointsWithoutTarget, data->current, data->target, len);
-    Valley v;
+    Obstacle* tabObstacle = findTabObstacle(tabCyl, len);
+    Obstacle o;
     for (int i=0;i<size;i++){
-    	v = tabValley[i];
-    	if (v.leftEdge.dist != -1){
-    			printf("Vallée no %d : alpha1 = %f, dist1 = %f, alphacenter = %f, distcenter = %f alpha2 = %f, dist2 = %f\n",i, v.rightEdge.angle*180/M_PI, v.rightEdge.dist, v.center.angle*180/M_PI, v.center.dist, v.leftEdge.angle*180/M_PI, v.leftEdge.dist);
+    	o = tabObstacle[i];
+    	if (o.dist != -1){
+    			printf("obstacle no %d : alpha = %f, theta = %f, dist = %f\n",i, o.alpha*180/M_PI, o.theta*180/M_PI, o.dist);
     		}
     }*/
 	// distance to closest obstacle
@@ -428,21 +525,37 @@ void on_new_scan(Data *data, const Point *points, uint32_t len) {
             min_dist = d;
         }
     }
-	/*if (min_dist<HIGH_SAFETY){	//Calculs pour Low Safety
-		//recuperer le tableau d'obstacle à l'intérieur de HIGH_SAFETY zone
-	}*/
-    PointCyl *tabCyl = tabAbsToTabCyl(data->current, data->target,pointsWithoutTarget, len);
-    // update in data
+	//recuperer le tableau d'obstacle à l'intérieur de HIGH_SAFETY zone
+	uint32_t sizeDanger = 0;
+	for (int i = 0; i<size; i++){
+		if (tabCyl[i].dist <= HIGH_SAFETY){
+			sizeDanger ++;
+		}
+	}
+	PointCyl pointsDanger[sizeDanger];
+	int k = 0;
+	for (int i = 0; i<len; i++){
+		if (tabCyl[i].dist <= HIGH_SAFETY){
+			pointsDanger[k] = tabCyl[i];
+			k++;
+		}
+	}
 	//Update of path state from robot to target
 	int pathClear = pathIsClear(tabCyl,data->current, data->target,len);
 	data->pathClear = pathClear;
     data->closest_obstacle = min_dist;
-	PointCyl closestGap = absToCyl(data->target, data->current);
+	PointCyl closestGap = targetCyl;
     if (len != 0){
 		closestGap = closest_gap(tabCyl, data->current, data->target, len);
 		data->closest_gap = closestGap;
+		if (closestGap.dist == -1) {
+			closestGap = closest_gap(tabCyl, data->current, cylToAbs(fleeingTarget, data->current), size);
+		}
 		data->free_walking_area = findValley(closestGap, tabCyl, len);
     }
+	data->obstacle_situation = obstacleSituation(data->current, pointsDanger, size);
+
+    //ND Tree
 	if (closestGap.dist == -1){
 		data->ndSituation = -1; //It's A Trap
 	}else if (min_dist > HIGH_SAFETY){
@@ -454,8 +567,14 @@ void on_new_scan(Data *data, const Point *points, uint32_t len) {
     	} else{
 			data->ndSituation = 2;    //HSNR
 		}
-    }else{
-    	data->ndSituation = 3; //LS
+    }else{ //LS
+		if (free_vector(targetCyl,pointsDanger, sizeDanger) ==0){
+			data->ndSituation = 3; //LSGR
+		} else if (data->obstacle_situation < 3){
+			data->ndSituation = 4; //LS1
+		} else{
+			data->ndSituation = 5;//LS2
+		}
     }
 	pthread_mutex_unlock(data->mutex_data);
 	/*************************************************/
@@ -467,7 +586,7 @@ int direction(Data*);
 
 Command get_command(Data *data) {
     Command cmd;
-    //printf("Mutex Debug : onNewScan : Prise\n");
+    //printf("Mutex Debug : get commande : Prise\n");
 	/*************************************************/
 	pthread_mutex_lock(data->mutex_data);
     int ndSituation = data->ndSituation;
@@ -476,13 +595,13 @@ Command get_command(Data *data) {
 	if (ndSituation == -1){ //It's A trap
 		printf("Admiral Ackbot : << It's A Trap ! >>\n");
 		cmd.forward_vel = -MAX_SPEED/2; //I'm trying and heroic move bro !
-	}else if (ndSituation < 3) { //HSGR
+	}else if (ndSituation <= 2) { //HSGR
 		//printf("High Safety\n");
 		cmd.forward_vel = MAX_SPEED;
-	} else if (ndSituation == 3) { //LS
+	} else if (ndSituation <= 5 ) { //LS
 		//LS1 ou LS2
 		//printf("Low Safety \n");
-		cmd.forward_vel = MAX_SPEED /2;
+		cmd.forward_vel = MAX_SPEED * (data->closest_obstacle / HIGH_SAFETY); //adapt the speed to the obstacle proximity
 	} else { //DANGER
     	printf("WARNING : TOO CLOSE !!\n");
 		cmd.forward_vel = 0;
@@ -491,14 +610,22 @@ Command get_command(Data *data) {
     }
     if (!cantGo) {
     	int dir = direction(data);//situation à gérer
+		float target_dist = absToCyl(data->target, data->current).dist;
+		float steering;
+    	if (data->closest_obstacle < target_dist){
+    		steering = (target_dist - data->closest_obstacle) * MAX_STEER / target_dist;
+    	} else {
+    		steering = MAX_STEER/3;
+    	}
+    	//printf("closest obstacle = %f, target dist = %f, steering = %F\n", data->closest_obstacle, target_dist,steering);
     	if (dir == 0) {
     		cmd.steering = 0;
     	} else if (dir == -1) {
     		// GO LEFT !!!!
-    		cmd.steering = -MAX_STEER;
+    		cmd.steering = - steering;
     	} else {
     		// GO RIGHT !!!!!!
-    		cmd.steering = MAX_STEER;
+    		cmd.steering = steering;
     	}
 	}
 	pthread_mutex_unlock(data->mutex_data);
@@ -508,16 +635,31 @@ Command get_command(Data *data) {
 
 /** return -1 for left, 0 for center and 1 for right 69 = ERROR*/
 /** Situation :
+ * -1 = Trapped
  * 0 = HSGR
  * 1 = HSWR
  * 2 = HSNR
- * 3 = LS
- *
+ * 3 = LSGR
+ * 4 = LS1 //not implemented
+ * 5 = LS2 //not implemented
  *
 */
 int direction(Data* data) {
 
 	int Situation = data->ndSituation;
+	if (Situation == 0){
+		printf("Situation : HSGR (High Safety Goal in Range) \n");
+	}else if (Situation ==1){
+		printf("Situation : HSWR (High Safety Wide Range)\n");
+	}else if (Situation ==2){
+		printf("Situation : HSNR (High Safety Narrow Range)\n");
+	}else if (Situation ==3){
+		printf("Situation : LSGR (Low Safety Goal in Range)\n");
+	}else if (Situation ==4){
+		printf("Situation : LS1 (Low Safety 1 side obstacle)\n");
+	}else if (Situation ==5){
+		printf("Situation : LS2 (Low Safety 2 side obstacle)\n");
+	}
 	// self direction vector
 	float self_dir_x = cosf(data->current.theta);
 	float self_dir_y = sinf(data->current.theta);
@@ -543,10 +685,10 @@ int direction(Data* data) {
 		} else {
 			return 1; // right
 		}
-	}else if (Situation <3){
+	}else if (Situation <= 2 || Situation == 5){
 		if (Situation == 1) {
 			follow = data->closest_gap;
-		}else{ //Situation = 2
+		}else{ //Situation = 2 ou Situation = 5
 			follow = data->free_walking_area.center;
 		}
 		float follow_prod = data->current.theta - follow.angle;
@@ -566,7 +708,27 @@ int direction(Data* data) {
 			//printf("Droite\n");
 			return 1; // right
 		}
-	} else {
+	} else { //LS
+		if (Situation == 3){ //try go directly to target
+			if (fabs(dot_prod) < 0.0001) { // note the number here is arbitrary
+				return 0; // approximately center
+			} else if (dot_prod < 0) {
+				return -1; // left
+			} else {
+				return 1; // right
+			}
+		} else if (Situation == 4){
+			//LS1 : go to the free direction
+			if (data->obstacle_situation == 1){ //i.e. obstacles on the left
+				return 1;
+			} else {
+				return -1;
+			}
+			return 1;
+		} else {
+			printf("erreur de situation    \n") ;
+			return 0;
+		}
 		//printf("erreur de situation    \n") ;
 		return 1 ;
 	}
