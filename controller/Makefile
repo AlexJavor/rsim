@@ -5,13 +5,14 @@ OBJ2=dwa_controller.o
 OBJ3=pfm_controller.o
 
 # It just compiles the first one
+default: libpfm_controller.so libdwa_controller.so libhighlevel_controller.so 
 
-libhighlevel_controller.so: $(OBJ2)
-	gcc -shared -o $@ $(OBJ2)
-$(OBJ2): highlevel_controller.c controller.h
-	$(CC) -c -o $(OBJ2) -fpic $< $(CFLAGS)
+libpfm_controller.so: $(OBJ1)
+	gcc -shared -o $@ $(OBJ1)
+$(OBJ1): pfm_controller.c controller.h
+	$(CC) -c -o $(OBJ1) -fpic $< $(CFLAGS)
 
-dwa_controller.so: $(OBJ3)
+libdwa_controller.so: $(OBJ3)
 	gcc -shared -o $@ $(OBJ3)
 $(OBJ3): dwa_controller.c controller.h
 	$(CC) -c -o $(OBJ3) -fpic $< $(CFLAGS)

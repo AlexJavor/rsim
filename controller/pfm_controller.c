@@ -183,7 +183,7 @@ float force_reference_angle(Vector f_total){
         f_ref_angle *= -1;
     }
 
-    printf("f_ref_angle = %f\n", f_ref_angle);
+    //printf("f_ref_angle = %f\n", f_ref_angle);
     return f_ref_angle;
 }
 
