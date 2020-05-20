@@ -20,7 +20,6 @@
 #define MAX_SPEED 10.0
 #define MAX_STEER 3.0
 
-#define D0 20.0
 #define NB_OBSTACLES 200
 #define K_ATT -1000.0
 #define K_REF 22.5

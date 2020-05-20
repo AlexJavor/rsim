@@ -659,7 +659,7 @@ int direction(Data* data) {
 		printf("Situation : LS1 (Low Safety 1 side obstacle)\n");
 	}else if (Situation ==5){
 		printf("Situation : LS2 (Low Safety 2 side obstacle)\n");
-	}
+	}	
 	// self direction vector
 	float self_dir_x = cosf(data->current.theta);
 	float self_dir_y = sinf(data->current.theta);
