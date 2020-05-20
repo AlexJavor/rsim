@@ -545,13 +545,22 @@ void on_new_scan(Data *data, const Point *points, uint32_t len) {
 	data->pathClear = pathClear;
     data->closest_obstacle = min_dist;
 	PointCyl closestGap = targetCyl;
-    if (len != 0){
-		closestGap = closest_gap(tabCyl, data->current, data->target, len);
-		data->closest_gap = closestGap;
-		if (closestGap.dist == -1) {
-			closestGap = closest_gap(tabCyl, data->current, cylToAbs(fleeingTarget, data->current), size);
+    if (size != 0){
+		if (min_dist > HIGH_SAFETY) {
+			closestGap = closest_gap(tabCyl, data->current, data->target, size);
+			data->closest_gap = closestGap;
+			if (closestGap.dist == -1) {
+				closestGap = closest_gap(tabCyl, data->current, cylToAbs(fleeingTarget, data->current), size);
+			}
+			data->free_walking_area = findValley(closestGap, tabCyl, size);
+		}else {
+			closestGap = closest_gap(pointsDanger, data->current, data->target, sizeDanger);
+			data->closest_gap = closestGap;
+			if (closestGap.dist == -1) {
+				closestGap = closest_gap(pointsDanger, data->current, cylToAbs(fleeingTarget, data->current), sizeDanger);
+			}
+			data->free_walking_area = findValley(closestGap, pointsDanger, sizeDanger);
 		}
-		data->free_walking_area = findValley(closestGap, tabCyl, len);
     }
 	data->obstacle_situation = obstacleSituation(data->current, pointsDanger, size);
 
@@ -593,7 +602,7 @@ Command get_command(Data *data) {
 	//Decision Tree of ND Navigation ---------
 	int cantGo =0;
 	if (ndSituation == -1){ //It's A trap
-		printf("Admiral Ackbot : << It's A Trap ! >>\n");
+		//printf("Admiral Ackbot : << It's A Trap ! >>\n");
 		cmd.forward_vel = -MAX_SPEED/2; //I'm trying and heroic move bro !
 	}else if (ndSituation <= 2) { //HSGR
 		//printf("High Safety\n");
@@ -724,13 +733,10 @@ int direction(Data* data) {
 			} else {
 				return -1;
 			}
-			return 1;
 		} else {
 			printf("erreur de situation    \n") ;
 			return 0;
 		}
-		//printf("erreur de situation    \n") ;
-		return 1 ;
 	}
 }
 
