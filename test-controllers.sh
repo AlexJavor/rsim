@@ -114,12 +114,12 @@ if [ "$DWA" == "D" ] ; then
     ./rsim --controller controller/$CONTROLLER --map maps/walls.jpg --target-x 60 --target-y 54
 fi
 
-# ******************************* Highlevel success rate: 5/14 ********************************** #
+# ******************************* Highlevel success rate: 6/14 ********************************** #
 if [ "$HLC" == "H" ] ; then
     CONTROLLER="libhighlevel_controller.so"
     # Empty(HLC - SUCCESS: 28.38s)
     ./rsim --controller controller/$CONTROLLER --map maps/empty.jpg --target-x 50 --target-y 50
-    # Base(HLC - SUCCESS: 43.00s)
+    # Base(HLC - SUCCESS: 31.37s)
     ./rsim --controller controller/$CONTROLLER --map maps/base.jpg --target-x 50 --target-y 50
     # Cone(HLC - CRASH Error: Goes backwards until it crashes with the first obstacle it encounters)
     ./rsim --controller controller/$CONTROLLER --map maps/cone.jpg --target-x 79 --target-y 35
@@ -127,15 +127,15 @@ if [ "$HLC" == "H" ] ; then
     ./rsim --controller controller/$CONTROLLER --map maps/high_density.png --target-x 50 --target-y 50
     # Line(HLC - TIMEOUT Error: spins above the center of the line non-stop)
     ./rsim --controller controller/$CONTROLLER --map maps/line.png --target-x 30 --target-y 55 --timeout 70
-    # Race_Track(HLC - SUCCESS: 52.83s)
+    # Race_Track(HLC - SUCCESS: 41.22s)
     ./rsim --controller controller/$CONTROLLER --map maps/race_track.jpg --target-x 79 --target-y 55
-    # Test1(HLC - SUCCESS: 50.08s)
+    # Test1(HLC - SUCCESS: 39.58s)
     ./rsim --controller controller/$CONTROLLER --map maps/test1.jpg --target-x 50 --target-y 50
     # Test2(HLC - SUCCESS: 44.30s)
     ./rsim --controller controller/$CONTROLLER --map maps/test2.jpg --target-x 74 --target-y 22
     # Test3(HLC - TIMEOUT Error: Stuck near an obstacle)
     ./rsim --controller controller/$CONTROLLER --map maps/test3.jpg --target-x 40 --target-y 30
-    # Test4(HLC - TIMEOUT Error: Stuck near an obstacle)
+    # Test4(HLC - SUCCESS: 44.98s)
     ./rsim --controller controller/$CONTROLLER --map maps/test4.jpg --target-x 70 --target-y 55 --timeout 70
     # Test5(HLC - CRASH Error: Goes backwards until it crashes with the first obstacle it encounters)
     ./rsim --controller controller/$CONTROLLER --map maps/test5.jpg --target-x 79 --target-y 45

@@ -193,7 +193,7 @@ int pathIsClear(PointCyl *points, Pose current, Point target, uint32_t len){
             //printf("dist = %f, angle = %f;\n", dist, angle);
             fprintf(fpoints, "%f\t%f \n", angle, dist);
             //dist est la distance entre un obstacle et la droite (Robot---Target)
-            if ((fabs(dist) < (2* ROBOT_WIDTH + HIGH_SAFETY)) && (pathClear == 0)&& (points[i].dist < targetCyl.dist)){
+            if ((fabs(dist) < (ROBOT_WIDTH + HIGH_SAFETY)) && (pathClear == 0)&& (points[i].dist < targetCyl.dist)){
                 //printf("obstacle detected dist : %f\n", fabs(dist));
                 pathClear = 1;
             }
@@ -225,7 +225,7 @@ int free_vector(PointCyl vector, PointCyl *points, uint32_t len){
 	for (int i=0; i< len; i++) {
 		dist = points[i].dist * sinf(fabs(vector.angle-points[i].angle));  //verify that the width  of the robot matches the path's one
 		//dist est la distance entre un obstacle et le vecteur (Robot---Point)
-		if ((fabs(dist) < (ROBOT_WIDTH/2 + SAFETY_DIST)) && (vector_free == 0) && (points[i].dist < vector.dist)){// && (points[i].dist < targetCyl.dist) (dist < (ROBOT_WIDTH/2))
+		if ((fabs(dist) < (ROBOT_WIDTH*2/3 + SAFETY_DIST)) && (vector_free == 0) && (points[i].dist < vector.dist)){// && (points[i].dist < targetCyl.dist) (dist < (ROBOT_WIDTH/2))
 			//obstacle detected
 			vector_free= 1;
 		}
@@ -413,8 +413,8 @@ PointCyl closest_gap(PointCyl *points, Pose current, Point targetPoint, uint32_t
 	 */
 	int cote = 0; //1 = droite, 2 = gauche
 	while (!found && (rvd.angle < (target.angle + M_PI))){
-		rvg.angle -= 0.01 ;
-		rvd.angle += 0.01 ;
+		rvg.angle -= 0.001 ;
+		rvd.angle += 0.001 ;
 		if (free_vector(rvg,points, len)==0){
 			cote = 2;//gauche
 			winner = rvg;
@@ -601,7 +601,7 @@ Command get_command(Data *data) {
 	} else if (ndSituation <= 5 ) { //LS
 		//LS1 ou LS2
 		//printf("Low Safety \n");
-		cmd.forward_vel = MAX_SPEED * (data->closest_obstacle / HIGH_SAFETY); //adapt the speed to the obstacle proximity
+		cmd.forward_vel = MAX_SPEED ;//* (data->closest_obstacle / HIGH_SAFETY); //adapt the speed to the obstacle proximity
 	} else { //DANGER
     	printf("WARNING : TOO CLOSE !!\n");
 		cmd.forward_vel = 0;
@@ -647,7 +647,7 @@ Command get_command(Data *data) {
 int direction(Data* data) {
 
 	int Situation = data->ndSituation;
-	if (Situation == 0){
+	/*if (Situation == 0){
 		printf("Situation : HSGR (High Safety Goal in Range) \n");
 	}else if (Situation ==1){
 		printf("Situation : HSWR (High Safety Wide Range)\n");
@@ -659,7 +659,7 @@ int direction(Data* data) {
 		printf("Situation : LS1 (Low Safety 1 side obstacle)\n");
 	}else if (Situation ==5){
 		printf("Situation : LS2 (Low Safety 2 side obstacle)\n");
-	}	
+	}	*/
 	// self direction vector
 	float self_dir_x = cosf(data->current.theta);
 	float self_dir_y = sinf(data->current.theta);
